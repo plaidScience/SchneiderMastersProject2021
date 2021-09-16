@@ -13,9 +13,10 @@ from . import UNET_GEN as unet
 from . import RESNET_GEN as resnet
 
 class CycleGAN():
-    def __init__(self, ouput_dir, modeltype='resnet'):
+    def __init__(self, input_shape, ouput_dir, modeltype='resnet'):
         self.time_created = datetime.datetime.now().strftime("%m_%d/%H/")
         self.output_dir = os.path.join(ouput_dir, self.time_created)
+        self.input_shape = input_shape
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
@@ -51,13 +52,13 @@ class CycleGAN():
 
     def _create_model_pair(self, gen_name, disc_name, modeltype):
         if modeltype.lower() == 'resnet':
-            gen = resnet.RESNET_GENERATOR(self.output_dir, gen_name)
+            gen = resnet.RESNET_GENERATOR(self.input_shape, self.output_dir, gen_name)
         elif modeltype.lower() == 'unet':
-            gen = unet.UNET_GENERATOR(self.output_dir, gen_name)
+            gen = unet.UNET_GENERATOR(self.input_shape, self.output_dir, gen_name)
         else:
             raise NotImplementedError(f"Model Type {modeltype} NYI")
 
-        disc = pix2pix.PIX2PIX_DISC(self.output_dir, disc_name)
+        disc = pix2pix.PIX2PIX_DISC(self.input_shape, self.output_dir, disc_name)
 
         return gen, disc
 
@@ -280,5 +281,5 @@ def main():
         preprocess_image_test, num_parallel_calls=AUTOTUNE).cache().shuffle(
         BUFFER_SIZE).batch(BATCH_SIZE)
 
-    cycleGAN = CycleGAN('./OUTPUT/cycleGAN/', modeltype=str(input("Input Desired Model Type: ")))
+    cycleGAN = CycleGAN([IMG_HEIGHT, IMG_WIDTH, 3], './OUTPUT/cycleGAN/', modeltype=str(input("Input Desired Model Type: ")))
     cycleGAN.train(train_horses, train_zebras, EPOCHS, start_epoch=0, log_freq=1, gen_freq=1, checkpoint_freq=5)

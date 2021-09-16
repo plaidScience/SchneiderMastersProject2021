@@ -7,17 +7,17 @@ from .CG_Layers import InstanceNormalization, ResnetBlock
 
 class RESNET_GENERATOR(MODEL):
 # resnet generator, based off of https://machinelearningmastery.com/how-to-develop-cyclegan-models-from-scratch-with-keras/
-    def __init__(self, output_dir, name='resnet_gen'):
+    def __init__(self, input_shape, output_dir, name='resnet_gen'):
         super(RESNET_GENERATOR, self).__init__(
             output_dir,
             name=name,
-            model_args={'n_resnet':9, 'norm_type':'instancenorm'},
+            model_args={'input_shape':input_shape, 'n_resnet':9, 'norm_type':'instancenorm'},
             optimizer_args={'lr':2e-4, 'beta_1':0.5}
         )
 
-    def _build_model(self, n_resnet=9, norm_type='instancenorm'):
+    def _build_model(self, input_shape=[None, None, 3], n_resnet=9, norm_type='instancenorm'):
         init = tf.random_normal_initializer(0., 0.02)
-        inp = tf.keras.Input(shape=[None, None, 3])
+        inp = tf.keras.Input(shape=input_shape)
 
         #conv block 1
         conv_1 = tf.keras.layers.Conv2D(64, (7,7), padding='same', kernel_initializer=init)(inp)

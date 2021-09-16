@@ -5,22 +5,22 @@ from .CG_Layers import InstanceNormalization, DownsampleBlock
 
 class PIX2PIX_DISC(MODEL):
 # pix2pix discriminator, implemented from https://github.com/tensorflow/examples/blob/master/tensorflow_examples/models/pix2pix/pix2pix.py
-    def __init__(self, output_dir, name='pix2pix_disc'):
+    def __init__(self, input_shape, output_dir, name='pix2pix_disc'):
         super(PIX2PIX_DISC, self).__init__(
             output_dir,
             name=name,
-            model_args={'norm_type':'instancenorm', 'target':False},
+            model_args={'input_shape':input_shape, 'norm_type':'instancenorm', 'target':False},
             optimizer_args={'lr':2e-4, 'beta_1':0.5}
         )
 
-    def _build_model(self, norm_type='instancenorm', target=False):
+    def _build_model(self, input_shape=[None, None, 3], norm_type='instancenorm', target=False):
         initializer = tf.random_normal_initializer(0., 0.02)
 
-        inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
+        inp = tf.keras.layers.Input(shape=input_shape, name='input_image')
         x = inp
         model_input = inp
         if target:
-            tar = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
+            tar = tf.keras.layers.Input(shape=input_shape, name='target_image')
             x = tf.keras.layers.Concatenate([inp, tar])
             model_input = [inp, tar]
         down1 = DownsampleBlock(64, 4, norm_type, False) (x)

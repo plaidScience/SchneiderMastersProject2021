@@ -59,7 +59,7 @@ def main():
         preprocess_image_test, num_parallel_calls=AUTOTUNE).cache().shuffle(
         BUFFER_SIZE).batch(BATCH_SIZE)
 
-    cycleGAN = CG.CycleGAN('./OUTPUT/cycleGAN_resnet/', modeltype='unet')
+    cycleGAN = CG.CycleGAN([IMG_HEIGHT, IMG_WIDTH, 3], './OUTPUT/cycleGAN_resnet/', modeltype='unet')
     cycleGAN.train(train_horses, train_zebras, EPOCHS, start_epoch=0, log_freq=1, gen_freq=1, checkpoint_freq=5)
 
 if __name__ =='__main__':

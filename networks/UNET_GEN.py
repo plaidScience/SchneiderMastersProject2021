@@ -5,15 +5,15 @@ from .CG_Layers import InstanceNormalization, DownsampleBlock, UpsampleBlock
 
 class UNET_GENERATOR(MODEL):
 #UNET Generator, implemented from https://github.com/tensorflow/examples/blob/master/tensorflow_examples/models/pix2pix/pix2pix.py
-    def __init__(self, output_dir, name='unet_gen'):
+    def __init__(self, output_dir, input_shape, name='unet_gen'):
         super(UNET_GENERATOR, self).__init__(
             output_dir,
             name=name,
-            model_args={'output_channels':3, 'norm_type':'instancenorm'},
+            model_args={'input_shape':input_shape, 'output_channels':3, 'norm_type':'instancenorm'},
             optimizer_args={'lr':2e-4, 'beta_1':0.5}
         )
 
-    def _build_model(self, output_channels=3, norm_type='instancenorm',):
+    def _build_model(self, input_shape=[None, None, 3], output_channels=3, norm_type='instancenorm',):
         down_stack = [
             DownsampleBlock(64, 4, norm_type, apply_norm=False),
             DownsampleBlock(128, 4, norm_type),
@@ -40,7 +40,7 @@ class UNET_GENERATOR(MODEL):
         last = tf.keras.layers.Conv2DTranspose(output_channels, 4, strides=2, padding='same',
             kernel_initializer=initializer, activation='tanh')
 
-        inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
+        inp = tf.keras.layers.Input(shape=input_shape, name='input_image')
         x = inp
 
         skips = []
