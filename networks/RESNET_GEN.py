@@ -44,11 +44,9 @@ class RESNET_GENERATOR(MODEL):
         act_3 = tf.keras.layers.ReLU()(norm_3)
 
         #resnet blocks
-        output_filters = 256
-        resnet_blk = ResnetBlock(256, input_shape=[None, None, output_filters], norm_type=norm_type)(act_3)
+        resnet_blk = ResnetBlock(256, norm_type=norm_type)(act_3)
         for _ in range(1, n_resnet):
-            output_filters += 256
-            resnet_blk = ResnetBlock(256, input_shape=[None, None, output_filters], norm_type=norm_type)(resnet_blk)
+            resnet_blk = ResnetBlock(256, norm_type=norm_type)(resnet_blk)
 
         #deconv block 1
         deconv_1 = tf.keras.layers.Conv2DTranspose(128, (3,3), strides=2, padding='same', kernel_initializer=init)(resnet_blk)
