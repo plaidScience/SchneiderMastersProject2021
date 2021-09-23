@@ -11,8 +11,11 @@ if i == -2:
 
 if i == 1:
     import run_scripts.resnet_cycleGAN as to_run
+    print("Running CycleGAN with RESNET Generator")
+
 
 if i == 2:
     import run_scripts.unet_cycleGAN as to_run
+    print("Running CycleGAN with UNET Generator")
 
 to_run.main()
