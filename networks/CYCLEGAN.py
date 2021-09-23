@@ -1,3 +1,4 @@
+from numpy.core.numeric import False_
 import tensorflow as tf
 
 import datetime
@@ -137,7 +138,7 @@ class CycleGAN():
 
 
         for epoch in range(start_epoch, epochs):
-            n = 1
+            n = 0
             print(f'Epoch: {epoch+1}: Starting!', end='')
             start = time.time()
             for img_x, img_y in zipped_dataset:
@@ -146,9 +147,9 @@ class CycleGAN():
                 g_loss(batch_g)
                 x_loss(batch_x)
                 y_loss(batch_y)
+                n+=1
                 if n%5==0:
                     print(f'\rEpoch: {epoch+1}: Batch {n} completed!', end='')
-                n+=1
 
             print(f'\rEpoch {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed!')
             print(f'\t[GENERATOR]: Gen F: {f_loss.result():.04f} Gen G: {g_loss.result():.04f}')
@@ -170,6 +171,12 @@ class CycleGAN():
                 self.log_image(test_y, self.gen_f, epoch, "Image Y to X")
                 self.log_image(test_y, self.gen_g, epoch, "Image Y to Y")
 
+                self.log_image(test_x, self.gen_g, epoch, "Image X to Y (Training=False)", False)
+                self.log_image(test_x, self.gen_f, epoch, "Image X to X (Training=False)", False)
+                self.log_image(test_y, self.gen_f, epoch, "Image Y to X (Training=False)", False)
+                self.log_image(test_y, self.gen_g, epoch, "Image Y to Y (Training=False)", False)
+
+
             if (epoch + 1) % checkpoint_freq == 0:
                 ckpt_save_path = self.checkpoint_manager.save()
                 print (f'Epoch {epoch+1}: Saving checkpoint at {ckpt_save_path}')
@@ -181,9 +188,10 @@ class CycleGAN():
             x_loss.reset_states()
             y_loss.reset_states()
 
-    def log_image(self, images, generator, epoch, log_str='Epoch Generated'):
+    def log_image(self, images, generator, epoch, log_str='Epoch Generated', is_training=True):
+        batch_size = tf.shape(images)[0]
         image_size = tf.shape(images)[-3:].numpy()
-        predictions = generator(images, training=False)
+        predictions = generator(images, training=is_training)
         dpi = 100.
         w_pad = 2/72.
         h_pad = 2/72.
@@ -211,7 +219,8 @@ class CycleGAN():
             images_list.append(image)
         out_images = tf.stack(images_list, axis=0)
         with generator.logger.as_default():
-            tf.summary.image(log_str, out_images, step=epoch)
+            tf.summary.image(log_str, out_images, max_outputs=batch_size, step=epoch)
+        plt.close()
 
     def save_models(self, path=None):
         self.gen_f.save_model(path)

@@ -12,10 +12,10 @@ def main():
     test_horses, test_zebras = dataset['testA'], dataset['testB']
 
     BUFFER_SIZE = 1000
-    BATCH_SIZE = 1
+    BATCH_SIZE = 4
     IMG_WIDTH = 256
     IMG_HEIGHT = 256
-    EPOCHS=40
+    EPOCHS=1
 
     def random_crop(image):
         croppped_image = tf.image.random_crop(image, size=[IMG_HEIGHT, IMG_WIDTH, 3])
@@ -59,7 +59,7 @@ def main():
         preprocess_image_test, num_parallel_calls=AUTOTUNE).cache().shuffle(
         BUFFER_SIZE).batch(BATCH_SIZE)
 
-    cycleGAN = CG.CycleGAN([IMG_HEIGHT, IMG_WIDTH, 3], './OUTPUT/cycleGAN_resnet/', modeltype='unet')
+    cycleGAN = CG.CycleGAN([IMG_HEIGHT, IMG_WIDTH, 3], './OUTPUT/cycleGAN_unet/', modeltype='unet')
     cycleGAN.train(train_horses, train_zebras, EPOCHS, start_epoch=0, log_freq=1, gen_freq=1, checkpoint_freq=5)
 
 if __name__ =='__main__':
