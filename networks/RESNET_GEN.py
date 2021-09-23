@@ -70,7 +70,7 @@ class RESNET_GENERATOR(MODEL):
             norm_6 = InstanceNormalization()(conv_4)
         outp = tf.keras.layers.Activation('tanh')(norm_6)
 
-        return tf.keras.Model(inputs=inp, outputs=outp)
+        return tf.keras.Model(inputs=inp, outputs=outp, name=self.name)
 
     def _build_optimizer(self, lr=2e-4, beta_1=0.5):
         return tf.keras.optimizers.Adam(lr, beta_1=beta_1)

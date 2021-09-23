@@ -5,7 +5,7 @@ from .CG_Layers import InstanceNormalization, DownsampleBlock, UpsampleBlock
 
 class UNET_GENERATOR(MODEL):
 #UNET Generator, implemented from https://github.com/tensorflow/examples/blob/master/tensorflow_examples/models/pix2pix/pix2pix.py
-    def __init__(self, output_dir, input_shape, name='unet_gen'):
+    def __init__(self, input_shape, output_dir, name='unet_gen'):
         super(UNET_GENERATOR, self).__init__(
             output_dir,
             name=name,
@@ -56,7 +56,7 @@ class UNET_GENERATOR(MODEL):
 
         x = last(x)
 
-        return tf.keras.Model(inputs=inp, outputs=x)
+        return tf.keras.Model(inputs=inp, outputs=x, name=self.name)
 
     def _build_optimizer(self, lr=2e-4, beta_1=0.5):
         return tf.keras.optimizers.Adam(lr, beta_1=beta_1)

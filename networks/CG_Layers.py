@@ -27,8 +27,7 @@ class DownsampleBlock(tf.keras.layers.Layer):
         self.act = tf.keras.layers.LeakyReLU()
     def call(self, inputs, training=None):
         x = self.conv(inputs)
-        if training:
-            x = self.norm(x)
+        x = self.norm(x)
         return self.act(x)
     def get_config(self):
         config = super(ResnetBlock, self).get_config()
@@ -78,8 +77,8 @@ class UpsampleBlock(tf.keras.layers.Layer):
 
     def call(self, inputs, training=None):
         x = self.conv(inputs)
+        x = self.norm(x)
         if training:
-            x = self.norm(x)
             x = self.dropout(x)
         return self.act(x)
     def get_config(self):
@@ -132,12 +131,10 @@ class ResnetBlock(tf.keras.layers.Layer):
         self.concat = tf.keras.layers.Concatenate()
     def call(self, inputs, training=None):
         x = self.conv2d_1(inputs)
-        if training:
-            x = self.norm_1(x)
+        x = self.norm_1(x)
         x = self.act(x)
         x = self.conv2d_2(x)
-        if training:
-            x = self.norm_2(x)
+        x = self.norm_2(x)
         return self.concat([x, inputs])
     def get_config(self):
         config = super(ResnetBlock, self).get_config()
