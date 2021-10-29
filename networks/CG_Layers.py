@@ -112,7 +112,9 @@ class ResnetBlock(tf.keras.layers.Layer):
         self.filters = filters
         self.norm_type = norm_type
 
+
         self.conv_initializer = tf.random_normal_initializer(0., 0.02)
+
         self.conv2d_1 = tf.keras.layers.Conv2D(self.filters, (3,3), padding='same', kernel_initializer=self.conv_initializer)
         if self.norm_type.lower() == 'instancenorm':
             self.norm_1 = InstanceNormalization()
@@ -120,22 +122,27 @@ class ResnetBlock(tf.keras.layers.Layer):
             self.norm_1 = tf.keras.layers.BatchNormalization()
         else:
             self.norm_1 = lambda x: x
-        self.act = tf.keras.layers.ReLU()
+        self.act1 = tf.keras.layers.ReLU()
+
         self.conv2d_2 = tf.keras.layers.Conv2D(self.filters, (3,3), padding='same', kernel_initializer=self.conv_initializer)
+
         if self.norm_type.lower() == 'instancenorm':
             self.norm_2 = InstanceNormalization()
         elif self.norm_type.lower() == 'batchnorm':
             self.norm_2 = tf.keras.layers.BatchNormalization()
         else:
             self.norm_2 = lambda x: x
-        self.concat = tf.keras.layers.Concatenate()
+
+        self.add = tf.keras.layers.Add()
+        self.act2 = tf.keras.layers.ReLU()
     def call(self, inputs, training=None):
         x = self.conv2d_1(inputs)
         x = self.norm_1(x)
-        x = self.act(x)
+        x = self.act1(x)
         x = self.conv2d_2(x)
         x = self.norm_2(x)
-        return self.concat([x, inputs])
+        x = self.add([x, inputs])
+        return self.act2(x)
     def get_config(self):
         config = super(ResnetBlock, self).get_config()
         config.update({"filters": self.filters, "norm_type":self.norm_type})
