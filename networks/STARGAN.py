@@ -41,8 +41,8 @@ class StarganGAN():
         self.xentropy_loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
         self.mae_loss_object = tf.keras.losses.MeanAbsoluteError()
         self.LAMBDA_class = 1
-        self.LAMBDA_cycle = 1
-        self.LAMBDA_gp = 1
+        self.LAMBDA_cycle = 10
+        self.LAMBDA_gp = 10
 
 
     def _create_models(self, gen_name, disc_name, modeltype):
@@ -134,9 +134,17 @@ class StarganGAN():
         
         #preprocess data
 
+        #g_loss_fake, g_loss_cls, g_loss_cycled
+        total_gen_loss = tf.keras.metrics.Mean('total_gen_loss', dtype=tf.float32)
+        gen_adv_loss = tf.keras.metrics.Mean('gen_adv_loss', dtype=tf.float32)
+        gen_cls_loss = tf.keras.metrics.Mean('gen_cls_loss', dtype=tf.float32)
+        gen_cyc_loss = tf.keras.metrics.Mean('gen_cyc_loss', dtype=tf.float32)
 
-        gen_loss = tf.keras.metrics.Mean('gen_loss', dtype=tf.float32)
-        disc_loss = tf.keras.metrics.Mean('disc_loss', dtype=tf.float32)
+        #d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
+        total_disc_loss = tf.keras.metrics.Mean('total_disc_loss', dtype=tf.float32)
+        disc_adv_loss = tf.keras.metrics.Mean('disc_adv_loss', dtype=tf.float32)
+        disc_cls_loss = tf.keras.metrics.Mean('disc_cls_loss', dtype=tf.float32)
+        disc_grad_loss = tf.keras.metrics.Mean('disc_grad_loss', dtype=tf.float32)
 
 
         for epoch in range(start_epoch, epochs):
@@ -145,21 +153,38 @@ class StarganGAN():
             start = time.time()
             for batch in data:
                 batch_g, batch_d = self._train_step(batch)
-                gen_loss(batch_g)
-                disc_loss(batch_d)
+
+                g_fake, g_cls, g_cyc = batch_g
+                total_gen_loss((g_fake+g_cls*self.LAMBDA_class+g_cyc*self.LAMBDA_cycle))
+                gen_adv_loss(g_fake)
+                gen_cls_loss(g_cls*self.LAMBDA_class)
+                gen_cyc_loss(g_cyc*self.LAMBDA_cycle)
+
+                d_real, d_fake, d_cls, d_gp = batch_d
+                total_disc_loss((d_real+d_fake+d_cls*self.LAMBDA_class+d_gp*self.LAMBDA_gp))
+                disc_adv_loss(d_real+d_fake)
+                disc_cls_loss(d_cls*self.LAMBDA_class)
+                disc_grad_loss(d_gp*self.LAMBDA_gp)
                 n+=1
                 if n%5==0:
                     print(f'\rEpoch: {epoch+1}: Batch {n} completed!', end='')
 
             print(f'\rEpoch {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed!')
-            print(f'\t[GENERATOR Loss]: {gen_loss.result():.04f}')
-            print(f'\t[DISCRIMINATOR Loss]: {disc_loss.result():.04f}')
+            print(f'\t[GENERATOR Loss]: {total_gen_loss.result():.04f}')
+            print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss.result():.04f}')
 
             if (epoch+1)%log_freq==0:
                 with self.gen.logger.as_default():
-                    tf.summary.scalar('loss', gen_loss.result(), step=epoch)
+                    tf.summary.scalar('loss', total_gen_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_adv', gen_adv_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_cls', gen_cls_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_cyc', gen_cyc_loss.result(), step=epoch)
+
                 with self.disc.logger.as_default():
-                    tf.summary.scalar('loss', disc_loss.result(), step=epoch)
+                    tf.summary.scalar('loss', total_disc_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_adv', disc_adv_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_cls', disc_cls_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_gp', disc_grad_loss.result(), step=epoch)
 
             if (epoch+1)%gen_freq==0:
                 #log translated images in some form (maybe a NxN image tiling of translations?)
@@ -172,8 +197,14 @@ class StarganGAN():
 
 
 
-            gen_loss.reset_states()
-            disc_loss.reset_states()
+            total_gen_loss.reset_states()
+            gen_adv_loss.reset_states()
+            gen_cls_loss.reset_states()
+            gen_cyc_loss.reset_states()
+            total_disc_loss.reset_states()
+            disc_adv_loss.reset_states()
+            disc_cls_loss.reset_states()
+            disc_grad_loss.reset_states()
 
     def log_images(self):
         images=None
