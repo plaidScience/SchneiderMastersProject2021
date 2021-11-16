@@ -10,7 +10,8 @@ def main():
     restrict_gpu.chooseOneGPU(int(input("Input the ID of the GPU you'd Like to choose: ")))
     AUTOTUNE = tf.data.AUTOTUNE
 
-    load_dir = "D:/celeba/"
+    #load_dir = "D:/celeba/"
+    load_dir = '/media/Data1/CELEBA/'
     labels = ["Blond_Hair", "Brown_Hair", "Black_Hair", "Male", "Young"]
 
     dataset = CELEBA.load_celeba(load_dir, labels)
