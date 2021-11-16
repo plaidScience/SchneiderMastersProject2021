@@ -16,5 +16,8 @@ if i == 1:
 if i == 2:
     import run_scripts.unet_cycleGAN as to_run
     print("Running CycleGAN with UNET Generator")
+if i == 3:
+    import run_scripts.celebA_local_STARGAN as to_run
+    print("Running STARGAN with celebA local Download")
 
 to_run.main()
