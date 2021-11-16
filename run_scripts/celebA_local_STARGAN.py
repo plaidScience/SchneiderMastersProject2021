@@ -17,8 +17,8 @@ def main():
     dataset = CELEBA.load_celeba(load_dir, labels)
 
     BATCH_SIZE = 16
-    IMG_WIDTH = 218
-    IMG_HEIGHT = 178
+    IMG_WIDTH = 178
+    IMG_HEIGHT = 218
     EPOCHS=20
 
     cycleGAN = SG.StarGAN([IMG_HEIGHT, IMG_WIDTH, 3], len(labels), './OUTPUT/starGAN_celeba/')

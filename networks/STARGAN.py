@@ -101,7 +101,7 @@ class StarGAN():
 
         with tf.GradientTape() as d_tape:
             d_real, d_real_pred = self.disc(real)
-            fake = self.gen(real, target)
+            fake = self.gen([real, target])
             d_fake, d_fake_pred = self.disc(fake)
 
             d_loss_real = - self.adverserial_loss(d_real)
@@ -121,10 +121,10 @@ class StarGAN():
 
     def _train_step_gen(self, real, cls, target):
         with tf.GradientTape() as g_tape:
-            fake = self.gen(real, target)
+            fake = self.gen([real, target])
             g_fake, g_fake_pred = self.disc(fake)
             
-            cycled = self.gen(fake, cls)
+            cycled = self.gen([fake, cls])
 
             g_loss_fake = self.adverserial_loss(g_fake)
             g_loss_cls = self.classifier_loss(target, g_fake_pred)
@@ -250,7 +250,7 @@ class StarGAN():
     def log_images(self, epoch, batch, target_label, label_str, num_images=5):
         batch = batch[0:num_images]
         image_size = tf.shape(batch)[-3:].numpy()
-        predictions = self.gen(batch, target_label)
+        predictions = self.gen([batch, target_label])
         dpi = 100.
         w_pad = 2/72.
         h_pad = 2/72.
