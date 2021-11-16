@@ -7,7 +7,7 @@ from data import celeba_local as CELEBA
 from util import restrict_gpu
 
 def main():
-    restrict_gpu.chooseOneGPU(input("Input the ID of the GPU you's Like to choose"))
+    restrict_gpu.chooseOneGPU(int(input("Input the ID of the GPU you'd Like to choose: ")))
     AUTOTUNE = tf.data.AUTOTUNE
 
     load_dir = "D:/celeba/"

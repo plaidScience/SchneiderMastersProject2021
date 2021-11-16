@@ -60,6 +60,6 @@ class RESNET_GENERATOR(MODEL):
 
         return tf.keras.Model(inputs=[inp, inp_labels], outputs=outp, name=self.name)
 
-    def _build_optimizer(self, lr=2e-4, beta_1=0.5):
-        return tf.keras.optimizers.Adam(lr, beta_1=beta_1)
+    def _build_optimizer(self, lr=2e-4, beta_1=0.5, beta_2=0.999, **kwargs):
+        return tf.keras.optimizers.Adam(lr, beta_1=beta_1, beta_2=beta_2, **kwargs)
 
