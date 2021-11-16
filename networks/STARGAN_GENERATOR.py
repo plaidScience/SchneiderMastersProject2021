@@ -3,16 +3,18 @@ from tensorflow.python.keras.engine import input_layer
 from tensorflow.python.util.tf_export import InvalidSymbolNameError
 from .MODEL_CLASS import MODEL
 from .CG_Layers import InstanceNormalization, ResnetBlock
+from .SG_LR_SCHEDULER import StarGANSchedule
 
 
 class RESNET_GENERATOR(MODEL):
 # resnet generator, based off of https://machinelearningmastery.com/how-to-develop-cyclegan-models-from-scratch-with-keras/
     def __init__(self, input_shape, n_labels, output_dir, name='resnet_gen'):
+        sg_schedule = StarGANSchedule(0.0001, 10, 10)
         super(RESNET_GENERATOR, self).__init__(
             output_dir,
             name=name,
             model_args={'input_shape':input_shape, 'n_labels':n_labels, 'n_resnet':6},
-            optimizer_args={'lr':2e-4, 'beta_1':0.5}
+            optimizer_args={'lr':sg_schedule, 'beta_1':0.5, 'beta_2':0.999}
         )
 
     def _build_model(self, input_shape=[None, None, 3], n_labels=None, n_resnet=6):

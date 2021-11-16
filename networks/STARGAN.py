@@ -1,5 +1,6 @@
 from re import T
 from numpy.core.numeric import False_
+from six import b
 import tensorflow as tf
 
 import datetime
@@ -10,11 +11,14 @@ import os
 import matplotlib.pyplot as plt
 import io
 
+from tensorflow.python.ops.gen_array_ops import one_hot
+
 from . import STARGAN_GENERATOR as generator
 from . import STARGAN_DISCRIMINATOR as discriminator
 
-class StarganGAN():
-    def __init__(self, input_shape, n_classes, ouput_dir, modeltype='resnet'):
+
+class StarGAN():
+    def __init__(self, input_shape, n_classes, ouput_dir):
         self.time_created = datetime.datetime.now().strftime("%m_%d/%H/")
         self.output_dir = os.path.join(ouput_dir, self.time_created)
         self.input_shape = input_shape
@@ -22,7 +26,7 @@ class StarganGAN():
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-        self.gen, self.disc = self._create_models('generator', 'discriminator', modeltype)
+        self.gen, self.disc = self._create_models('generator', 'discriminator')
         print("Generator:")
         self.gen.summary()
         print("Discriminator:")
@@ -45,7 +49,7 @@ class StarganGAN():
         self.LAMBDA_gp = 10
 
 
-    def _create_models(self, gen_name, disc_name, modeltype):
+    def _create_models(self, gen_name, disc_name):
         gen = generator.RESNET_GENERATOR(self.input_shape, self.n_classes, self.output_dir, gen_name)
 
         disc = discriminator.PIX2PIX_DISC(self.input_shape, self.n_classes, self.output_dir, disc_name)
@@ -74,9 +78,23 @@ class StarganGAN():
         loss = self.mae_loss_object(real, cycled)
         return loss
 
+    def gen_targets(self, cls, num=1):
+        list_targets = []
+        for i in range(num):
+            target = tf.random.shuffle(cls)[0]
+            target = tf.repeat([target], [tf.shape(cls)[0]], axis=0)
+            list_targets.append(target)
+        targets = tf.stack(list_targets, 0)
+        return targets
+
+    def gen_target(self, cls):
+        target = tf.random.shuffle(cls)[0]
+        target = tf.repeat([target], [tf.shape(cls)[0]], axis=0)
+        return target
+
     def _train_preprocess(self, inp):
-        real, cls = inp
-        target = self.classes[tf.random.uniform(shape=1, minval=0, maxval=self.n_classes, dtype=tf.dtypes.int64)]
+        real, cls = inp['image'], inp['label']
+        target = self.gen_target(cls)
         return real, cls, target
 
     def _train_step_disc(self, real, cls, target):
@@ -130,9 +148,15 @@ class StarganGAN():
 
         return total_gen_loss, total_disc_loss
 
-    def train(self, data, epochs, start_epoch=0, log_freq=1, gen_freq=5, checkpoint_freq=5):
+    def train(self, data, label_strs, epochs, start_epoch=0, batch_size=8, log_freq=1, gen_freq=5, checkpoint_freq=5):
         
         #preprocess data
+        data, sample_batch=self._preprocess_data(data, batch_size, True, True)
+
+        one_hot_labels = tf.one_hot(range(self.n_classes), self.n_classes)
+
+
+
 
         #g_loss_fake, g_loss_cls, g_loss_cycled
         total_gen_loss = tf.keras.metrics.Mean('total_gen_loss', dtype=tf.float32)
@@ -188,7 +212,8 @@ class StarganGAN():
 
             if (epoch+1)%gen_freq==0:
                 #log translated images in some form (maybe a NxN image tiling of translations?)
-                self.log_images()
+                for i in range(self.n_classes):
+                    self.log_images(epoch, sample_batch, one_hot_labels[i], label_strs[i], num_images=batch_size)
 
 
             if (epoch + 1) % checkpoint_freq == 0:
@@ -206,8 +231,55 @@ class StarganGAN():
             disc_cls_loss.reset_states()
             disc_grad_loss.reset_states()
 
-    def log_images(self):
-        images=None
+    def _preprocess_data(self, data, batch_size, shuffle=True, cache=True):
+        
+        data_count = tf.data.experimental.cardinality(data).numpy()
+        
+        if cache:
+            data = data.cache()
+        if shuffle:
+            data = data.shuffle(data_count)
+        
+        data = data.batch(batch_size)
+
+        sample_batch = next(iter(data))
+
+        return data, sample_batch
+
+
+    def log_images(self, epoch, batch, target_label, label_str, num_images=5):
+        batch = batch[0:num_images]
+        image_size = tf.shape(batch)[-3:].numpy()
+        predictions = self.gen(batch, target_label)
+        dpi = 100.
+        w_pad = 2/72.
+        h_pad = 2/72.
+        plot_width = (image_size[0]+2*w_pad*image_size[0])*2./dpi
+        plot_height = (image_size[1]+2*h_pad*image_size[1])/dpi
+        fig, ax = plt.subplots(1, 2, figsize=(plot_width, plot_height), dpi=dpi)
+
+        title = ['input', label_str]
+
+        img = [None, None]
+
+        for i in range(2):
+            ax[i].set_title(title[i])
+            ax[i].axis('off')
+            img[i] = ax[i].imshow(tf.zeros(image_size))
+
+        images_list = []
+        for image, prediction in zip(batch, predictions):
+            img[0].set_data(image*0.5 + 0.5)
+            img[1].set_data(prediction*0.5 + 0.5)
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png')
+
+            image = tf.image.decode_png(buf.getvalue(), channels=3)
+            images_list.append(image)
+        out_images = tf.stack(images_list, axis=0)
+        with generator.logger.as_default():
+            tf.summary.image(label_str, out_images, max_outputs=num_images, step=epoch)
+        plt.close()
 
     def save_models(self, path=None):
         self.gen.save_model(path)

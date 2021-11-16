@@ -1,10 +1,8 @@
 import tensorflow as tf
 import pandas as pd
 
-def load_celeba(load_dir, features):
+def load_celeba(load_dir, features, image_shape=(218, 178, 3)):
     filename = load_dir+"list_attr_celeba.txt"
-
-    IMAGE_SHAPE = (218, 178, 3)
 
     with open(filename) as f:
         content = f.readlines()
@@ -21,10 +19,10 @@ def load_celeba(load_dir, features):
         label = ds_dict_item['label']
 
         raw = tf.io.read_file(load_dir+'img_align_celeba/'+image_id)
-        image = tf.io.decode_jpeg(raw, channels=3)
+        image = tf.io.decode_jpeg(raw, channels=image_shape[2])
         image = tf.image.convert_image_dtype(image, tf.float32)
 
-        image = tf.image.r
+        image = tf.image.resize(image, image_shape[0:2])
         
         return {"image": image, "label":label}
     mapped = dataset.map(mapping_func, num_parallel_calls=tf.data.AUTOTUNE, deterministic=False)
