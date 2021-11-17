@@ -52,6 +52,8 @@ class StarGAN():
         self.LAMBDA_cycle = 10
         self.LAMBDA_gp = 10
 
+        self.gen_rate=5
+
 
     def _create_models(self, gen_name, disc_name):
         gen = generator.RESNET_GENERATOR(self.input_shape, self.n_classes, self.output_dir, gen_name)
@@ -71,7 +73,7 @@ class StarGAN():
             d_hat = self.disc(x_hat)
         gradients = t.gradient(d_hat, x_hat)
         ddx = tf.sqrt(tf.reduce_sum(gradients ** 2, axis=[1, 2]))
-        d_regularizer = tf.reduce_mean((ddx-1.0), ** 2)
+        d_regularizer = tf.reduce_mean((ddx-1.0) ** 2)
         return d_regularizer
 
     def classifier_loss(self, images, classes):
@@ -145,11 +147,11 @@ class StarGAN():
         return g_loss_fake, g_loss_cls, g_loss_cycled
 
 
-    def _train_step(self, data):
+    def _train_step(self, data, epoch):
 
         imgs, cls, target = self._train_preprocess(data)
         total_disc_loss = self._train_step_disc(imgs, cls, target)
-        total_gen_loss = self._train_step_gen(imgs, cls, target) if self.epoch%5 == 0 else None
+        total_gen_loss = self._train_step_gen(imgs, cls, target) if epoch%self.gen_rate == 0 else None
         
 
         return total_gen_loss, total_disc_loss
@@ -184,11 +186,12 @@ class StarGAN():
             for batch in data:
                 batch_g, batch_d = self._train_step(batch)
 
-                g_fake, g_cls, g_cyc = batch_g
-                total_gen_loss((g_fake+g_cls*self.LAMBDA_class+g_cyc*self.LAMBDA_cycle))
-                gen_adv_loss(g_fake)
-                gen_cls_loss(g_cls*self.LAMBDA_class)
-                gen_cyc_loss(g_cyc*self.LAMBDA_cycle)
+                if batch_g is not None:
+                    g_fake, g_cls, g_cyc = batch_g
+                    total_gen_loss((g_fake+g_cls*self.LAMBDA_class+g_cyc*self.LAMBDA_cycle))
+                    gen_adv_loss(g_fake)
+                    gen_cls_loss(g_cls*self.LAMBDA_class)
+                    gen_cyc_loss(g_cyc*self.LAMBDA_cycle)
 
                 d_real, d_fake, d_cls, d_gp = batch_d
                 total_disc_loss((d_real+d_fake+d_cls*self.LAMBDA_class+d_gp*self.LAMBDA_gp))
@@ -204,11 +207,12 @@ class StarGAN():
             print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss.result():.04f}')
 
             if (epoch+1)%log_freq==0:
-                with self.gen.logger.as_default():
-                    tf.summary.scalar('loss', total_gen_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_adv', gen_adv_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_cls', gen_cls_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_cyc', gen_cyc_loss.result(), step=epoch)
+                if epoch%self.gen_rate == 0:
+                    with self.gen.logger.as_default():
+                        tf.summary.scalar('loss', total_gen_loss.result(), step=epoch)
+                        tf.summary.scalar('loss_adv', gen_adv_loss.result(), step=epoch)
+                        tf.summary.scalar('loss_cls', gen_cls_loss.result(), step=epoch)
+                        tf.summary.scalar('loss_cyc', gen_cyc_loss.result(), step=epoch)
 
                 with self.disc.logger.as_default():
                     tf.summary.scalar('loss', total_disc_loss.result(), step=epoch)
