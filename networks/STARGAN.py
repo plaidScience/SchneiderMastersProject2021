@@ -18,15 +18,17 @@ from . import STARGAN_DISCRIMINATOR as discriminator
 
 
 class StarGAN():
-    def __init__(self, input_shape, n_classes, ouput_dir, preprocess_model=None):
+    def __init__(self, input_shape, n_classes, ouput_dir, preprocess_model=None, strategy=None):
         self.time_created = datetime.datetime.now().strftime("%m_%d/%H/")
         self.output_dir = os.path.join(ouput_dir, self.time_created)
         self.input_shape = input_shape
         self.n_classes = n_classes
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-
+        
         self.gen, self.disc = self._create_models('generator', 'discriminator')
+        self.train_step = self._train_step
+
         print("Generator:")
         self.gen.summary()
         print("Discriminator:")
@@ -48,6 +50,7 @@ class StarGAN():
 
         self.xentropy_loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
         self.mae_loss_object = tf.keras.losses.MeanAbsoluteError()
+        self.mse_loss_object = tf.keras.losses.MeanSequaredError()
         self.LAMBDA_class = 1
         self.LAMBDA_cycle = 10
         self.LAMBDA_gp = 10
@@ -73,7 +76,7 @@ class StarGAN():
             d_hat = self.disc(x_hat)
         gradients = t.gradient(d_hat, x_hat)
         ddx = tf.sqrt(tf.reduce_sum(gradients ** 2, axis=[1, 2]))
-        d_regularizer = tf.reduce_mean((ddx-1.0) ** 2)
+        d_regularizer = self.mse_loss_object(ddx, 1.0)
         return d_regularizer
 
     def classifier_loss(self, images, classes):
@@ -97,7 +100,14 @@ class StarGAN():
         target = tf.random.shuffle(cls)[0]
         target = tf.repeat([target], [tf.shape(cls)[0]], axis=0)
         return target
+    
+    def gen_onehot_target(self, batch_size):
+        idx = tf.random.uniform(shape=[], maxval=self.n_classes, dtype=tf.int32)
+        target = tf.one_hot([idx], self.n_classes)
+        target = tf.repeat(target, batch_size, axis=0)
+        return target
 
+    @tf.function
     def _train_preprocess(self, inp):
         real, cls = inp['image'], inp['label']
         target = self.gen_target(cls)
@@ -105,6 +115,7 @@ class StarGAN():
             real = self.preprocess_model(real)
         return real, cls, target
 
+    @tf.function
     def _train_step_disc(self, real, cls, target):
 
         with tf.GradientTape() as d_tape:
@@ -127,6 +138,7 @@ class StarGAN():
 
         return d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
 
+    @tf.function
     def _train_step_gen(self, real, cls, target):
         with tf.GradientTape() as g_tape:
             fake = self.gen([real, target])
@@ -146,7 +158,7 @@ class StarGAN():
 
         return g_loss_fake, g_loss_cls, g_loss_cycled
 
-
+    @tf.function
     def _train_step(self, data, epoch):
 
         imgs, cls, target = self._train_preprocess(data)
@@ -184,7 +196,7 @@ class StarGAN():
             print(f'Epoch: {epoch+1}: Starting!', end='')
             start = time.time()
             for batch in data:
-                batch_g, batch_d = self._train_step(batch)
+                batch_g, batch_d = self._train_step(batch, epoch)
 
                 if batch_g is not None:
                     g_fake, g_cls, g_cyc = batch_g
@@ -258,7 +270,7 @@ class StarGAN():
 
 
     def log_images(self, epoch, batch, target_label, label_str, num_images=5):
-        batch = batch[0:num_images]
+        batch = batch['images'][0:num_images]
         image_size = tf.shape(batch)[-3:].numpy()
         predictions = self.gen([batch, target_label])
         dpi = 100.
