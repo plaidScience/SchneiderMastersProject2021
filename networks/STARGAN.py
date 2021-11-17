@@ -270,7 +270,9 @@ class StarGAN():
 
 
     def log_images(self, epoch, batch, target_label, label_str, num_images=5):
-        batch = batch['images'][0:num_images]
+        batch = batch['image'][0:num_images]
+        if self.preprocess_model is not None:
+            batch = self.preprocess_model(batch)
         image_size = tf.shape(batch)[-3:].numpy()
         predictions = self.gen([batch, target_label])
         dpi = 100.
