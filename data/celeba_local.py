@@ -23,6 +23,7 @@ def load_celeba(load_dir, features, image_shape=(218, 178, 3)):
         image = tf.image.convert_image_dtype(image, tf.float32)
 
         image = tf.image.resize(image, image_shape[0:2])
+        image = (image*2.0)-1.0
         
         return {"image": image, "label":label}
     mapped = dataset.map(mapping_func, num_parallel_calls=tf.data.AUTOTUNE, deterministic=False)
