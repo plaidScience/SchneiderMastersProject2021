@@ -215,8 +215,16 @@ class StarGAN():
                     print(f'\rEpoch: {epoch+1}: Batch {n} completed!', end='')
 
             print(f'\rEpoch {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed!')
-            print(f'\t[GENERATOR Loss]: {total_gen_loss.result():.04f}')
+            if (epoch)%self.gen_rate==0:
+                print(f'\t[GENERATOR Loss]: {total_gen_loss.result():.04f}')
+                print(f'\t\t[GENERATOR adv]: {gen_adv_loss.result():.04f}')
+                print(f'\t\t[GENERATOR cls]: {gen_cls_loss.result():.04f}')
+                print(f'\t\t[GENERATOR cyc]: {gen_cyc_loss.result():.04f}')
             print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss.result():.04f}')
+            print(f'\t[DISCRIMINATOR adv]: {disc__advloss.result():.04f}')
+            print(f'\t[DISCRIMINATOR cls]: {disc_cls_loss.result():.04f}')
+            print(f'\t[DISCRIMINATOR gp ]: {disc_grad_loss.result():.04f}')
+
 
             if (epoch+1)%log_freq==0:
                 if epoch%self.gen_rate == 0:
@@ -274,7 +282,10 @@ class StarGAN():
         if self.preprocess_model is not None:
             batch = self.preprocess_model(batch)
         image_size = tf.shape(batch)[-3:].numpy()
-        predictions = self.gen([batch, target_label])
+        target = tf.repeat([target_label], num_images, axis=0)
+        predictions = self.gen([batch, target])
+        predictions = (predictions+1.0)/2.0
+        batch = (batch+1.0)/2.0
         dpi = 100.
         w_pad = 2/72.
         h_pad = 2/72.
@@ -301,7 +312,7 @@ class StarGAN():
             image = tf.image.decode_png(buf.getvalue(), channels=3)
             images_list.append(image)
         out_images = tf.stack(images_list, axis=0)
-        with generator.logger.as_default():
+        with self.gen.logger.as_default():
             tf.summary.image(label_str, out_images, max_outputs=num_images, step=epoch)
         plt.close()
 
