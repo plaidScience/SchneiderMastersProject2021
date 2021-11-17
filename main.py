@@ -19,5 +19,8 @@ if i == 2:
 if i == 3:
     import run_scripts.celebA_local_STARGAN as to_run
     print("Running STARGAN with celebA local Download")
+if i == -3:
+    import run_scripts.celebA_local_STARGAN as to_run
+    print("Running test on STARGAN with celebA local Download")
 
 to_run.main()
