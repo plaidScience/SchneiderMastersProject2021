@@ -284,8 +284,6 @@ class StarGAN():
         image_size = tf.shape(batch)[-3:].numpy()
         target = tf.repeat([target_label], num_images, axis=0)
         predictions = self.gen([batch, target])
-        predictions = (predictions+1.0)/2.0
-        batch = (batch+1.0)/2.0
         dpi = 100.
         w_pad = 2/72.
         h_pad = 2/72.
