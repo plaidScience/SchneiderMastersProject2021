@@ -32,10 +32,11 @@ class PIX2PIX_DISC(MODEL):
 
         
         zero_pad2=tf.keras.layers.ZeroPadding2D()(down6)
-        src = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(zero_pad2)
+        src = tf.keras.layers.Conv2D(1, 3, strides=1, kernel_initializer=initializer)(zero_pad2)
         cls = tf.keras.layers.Conv2D(n_classes, (input_shape[-3]//64, input_shape[-2]//64), strides=1, kernel_initializer=initializer)(down6)
+        cls_flattened = tf.keras.layers.Flatten()(cls)
 
-        return tf.keras.Model(inputs=inp, outputs=[src, cls], name=self.name)
+        return tf.keras.Model(inputs=inp, outputs=[src, cls_flattened], name=self.name)
 
     def _build_optimizer(self, lr=2e-4, beta_1=0.5, beta_2=0.999, **kwargs):
         return tf.keras.optimizers.Adam(lr, beta_1=beta_1, beta_2=beta_2, **kwargs)
