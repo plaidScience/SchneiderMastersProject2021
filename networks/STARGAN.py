@@ -221,9 +221,9 @@ class StarGAN():
                 print(f'\t\t[GENERATOR cls]: {gen_cls_loss.result():.04f}')
                 print(f'\t\t[GENERATOR cyc]: {gen_cyc_loss.result():.04f}')
             print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss.result():.04f}')
-            print(f'\t[DISCRIMINATOR adv]: {disc_adv_loss.result():.04f}')
-            print(f'\t[DISCRIMINATOR cls]: {disc_cls_loss.result():.04f}')
-            print(f'\t[DISCRIMINATOR gp ]: {disc_grad_loss.result():.04f}')
+            print(f'\t\t[DISCRIMINATOR adv]: {disc_adv_loss.result():.04f}')
+            print(f'\t\t[DISCRIMINATOR cls]: {disc_cls_loss.result():.04f}')
+            print(f'\t\t[DISCRIMINATOR gp ]: {disc_grad_loss.result():.04f}')
 
 
             if (epoch+1)%log_freq==0:
