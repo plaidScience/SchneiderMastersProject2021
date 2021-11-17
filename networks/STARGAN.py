@@ -18,7 +18,7 @@ from . import STARGAN_DISCRIMINATOR as discriminator
 
 
 class StarGAN():
-    def __init__(self, input_shape, n_classes, ouput_dir):
+    def __init__(self, input_shape, n_classes, ouput_dir, preprocess_model=None):
         self.time_created = datetime.datetime.now().strftime("%m_%d/%H/")
         self.output_dir = os.path.join(ouput_dir, self.time_created)
         self.input_shape = input_shape
@@ -32,6 +32,8 @@ class StarGAN():
         print("Discriminator:")
         self.disc.summary()
 
+        self.preprocess_model = preprocess_model
+
         self.checkpoint_folder = os.path.join(self.output_dir, 'checkpoints')
 
         self.checkpoint = tf.train.Checkpoint(
@@ -39,6 +41,8 @@ class StarGAN():
             gen_optimizer = self.gen.optimizer,
             disc = self.disc.model,
             disc_optimizer = self.disc.optimizer,
+            preprocess_model = self.preprocess_model
+
         )
         self.checkpoint_manager = tf.train.CheckpointManager(self.checkpoint, os.path.join(self.checkpoint_folder, 'checkpoint'), max_to_keep=5)
 
@@ -95,6 +99,8 @@ class StarGAN():
     def _train_preprocess(self, inp):
         real, cls = inp['image'], inp['label']
         target = self.gen_target(cls)
+        if self.preprocess_model is not None:
+            real = self.preprocess_model(real)
         return real, cls, target
 
     def _train_step_disc(self, real, cls, target):
