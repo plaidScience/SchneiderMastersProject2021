@@ -50,7 +50,7 @@ class StarGAN():
 
         self.xentropy_loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
         self.mae_loss_object = tf.keras.losses.MeanAbsoluteError()
-        self.mse_loss_object = tf.keras.losses.MeanSequaredError()
+        self.mse_loss_object = tf.keras.losses.MeanSquaredError()
         self.LAMBDA_class = 1
         self.LAMBDA_cycle = 10
         self.LAMBDA_gp = 10
