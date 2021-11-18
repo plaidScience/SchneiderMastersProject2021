@@ -146,7 +146,7 @@ class StarGAN():
             
             cycled = self.gen([fake, cls])
 
-            g_loss_fake = self.adverserial_loss(g_fake)
+            g_loss_fake = - self.adverserial_loss(g_fake)
             g_loss_cls = self.classifier_loss(target, g_fake_pred)
 
             g_loss_cycled = self.cycle_loss(real, cycled)
@@ -159,11 +159,11 @@ class StarGAN():
         return g_loss_fake, g_loss_cls, g_loss_cycled
 
     @tf.function
-    def _train_step(self, data, epoch):
+    def _train_step(self, data, step):
 
         imgs, cls, target = self._train_preprocess(data)
         total_disc_loss = self._train_step_disc(imgs, cls, target)
-        total_gen_loss = self._train_step_gen(imgs, cls, target) if epoch%self.gen_rate == 0 else None
+        total_gen_loss = self._train_step_gen(imgs, cls, target) if (step)%self.gen_rate == 0 else None
         
 
         return total_gen_loss, total_disc_loss
@@ -195,8 +195,8 @@ class StarGAN():
             n = 0
             print(f'Epoch: {epoch+1}: Starting!', end='')
             start = time.time()
-            for batch in data:
-                batch_g, batch_d = self._train_step(batch, epoch)
+            for batch_id, batch in data.enumerate():
+                batch_g, batch_d = self._train_step(batch, batch_id)
 
                 if batch_g is not None:
                     g_fake, g_cls, g_cyc = batch_g
@@ -215,11 +215,10 @@ class StarGAN():
                     print(f'\rEpoch: {epoch+1}: Batch {n} completed!', end='')
 
             print(f'\rEpoch {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed!')
-            if (epoch)%self.gen_rate==0:
-                print(f'\t[GENERATOR Loss]: {total_gen_loss.result():.04f}')
-                print(f'\t\t[GENERATOR adv]: {gen_adv_loss.result():.04f}')
-                print(f'\t\t[GENERATOR cls]: {gen_cls_loss.result():.04f}')
-                print(f'\t\t[GENERATOR cyc]: {gen_cyc_loss.result():.04f}')
+            print(f'\t[GENERATOR Loss]: {total_gen_loss.result():.04f}')
+            print(f'\t\t[GENERATOR adv]: {gen_adv_loss.result():.04f}')
+            print(f'\t\t[GENERATOR cls]: {gen_cls_loss.result():.04f}')
+            print(f'\t\t[GENERATOR cyc]: {gen_cyc_loss.result():.04f}')
             print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss.result():.04f}')
             print(f'\t\t[DISCRIMINATOR adv]: {disc_adv_loss.result():.04f}')
             print(f'\t\t[DISCRIMINATOR cls]: {disc_cls_loss.result():.04f}')
@@ -227,12 +226,11 @@ class StarGAN():
 
 
             if (epoch+1)%log_freq==0:
-                if epoch%self.gen_rate == 0:
-                    with self.gen.logger.as_default():
-                        tf.summary.scalar('loss', total_gen_loss.result(), step=epoch)
-                        tf.summary.scalar('loss_adv', gen_adv_loss.result(), step=epoch)
-                        tf.summary.scalar('loss_cls', gen_cls_loss.result(), step=epoch)
-                        tf.summary.scalar('loss_cyc', gen_cyc_loss.result(), step=epoch)
+                with self.gen.logger.as_default():
+                    tf.summary.scalar('loss', total_gen_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_adv', gen_adv_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_cls', gen_cls_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_cyc', gen_cyc_loss.result(), step=epoch)
 
                 with self.disc.logger.as_default():
                     tf.summary.scalar('loss', total_disc_loss.result(), step=epoch)
