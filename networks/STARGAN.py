@@ -163,7 +163,10 @@ class StarGAN():
 
         imgs, cls, target = self._train_preprocess(data)
         total_disc_loss = self._train_step_disc(imgs, cls, target)
-        total_gen_loss = self._train_step_gen(imgs, cls, target) if (step)%self.gen_rate == 0 else None
+        if (step)%self.gen_rate == 0:
+            total_gen_loss = self._train_step_gen(imgs, cls, target)  
+        else:
+            total_gen_loss= None
         
 
         return total_gen_loss, total_disc_loss
