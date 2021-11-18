@@ -163,10 +163,7 @@ class StarGAN():
 
         imgs, cls, target = self._train_preprocess(data)
         total_disc_loss = self._train_step_disc(imgs, cls, target)
-        if (step)%self.gen_rate == 0:
-            total_gen_loss = self._train_step_gen(imgs, cls, target)  
-        else:
-            total_gen_loss= None
+        total_gen_loss = self._train_step_gen(imgs, cls, target) if (step)%self.gen_rate == 0 else (None, None, None)
         
 
         return total_gen_loss, total_disc_loss
@@ -201,7 +198,7 @@ class StarGAN():
             for batch_id, batch in data.enumerate():
                 batch_g, batch_d = self._train_step(batch, batch_id)
 
-                if batch_g is not None:
+                if (batch_id)%self.gen_rate == 0:
                     g_fake, g_cls, g_cyc = batch_g
                     total_gen_loss((g_fake+g_cls*self.LAMBDA_class+g_cyc*self.LAMBDA_cycle))
                     gen_adv_loss(g_fake)
