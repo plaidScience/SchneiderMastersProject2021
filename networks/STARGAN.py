@@ -59,11 +59,15 @@ class StarGAN():
 
 
     def _create_models(self, gen_name, disc_name):
-        gen = generator.RESNET_GENERATOR(self.input_shape, self.n_classes, self.output_dir, gen_name)
+        gen = generator.RESNET_GENERATOR(self.input_shape, self.n_classes, self.output_dir, lr=self._get_lr, name=gen_name)
 
-        disc = discriminator.PIX2PIX_DISC(self.input_shape, self.n_classes, self.output_dir, disc_name)
+        disc = discriminator.PIX2PIX_DISC(self.input_shape, self.n_classes, self.output_dir, lr=self._get_lr, name=disc_name)
 
         return gen, disc
+    
+    def _get_lr(self):
+        computed = 0.0001-((self.epoch+1)-10)*(0.0001/10)
+        return tf.clip_by_value(computed, 0.0, 0.0001)
 
     def adverserial_loss(self, output):
         return tf.reduce_mean(output)
@@ -163,7 +167,7 @@ class StarGAN():
 
         imgs, cls, target = self._train_preprocess(data)
         total_disc_loss = self._train_step_disc(imgs, cls, target)
-        total_gen_loss = self._train_step_gen(imgs, cls, target) if (step)%self.gen_rate == 0 else (None, None, None)
+        total_gen_loss = self._train_step_gen(imgs, cls, target) if (step)%self.gen_rate == 0 else (-1, -1, -1)
         
 
         return total_gen_loss, total_disc_loss
@@ -193,6 +197,7 @@ class StarGAN():
 
         for epoch in range(start_epoch, epochs):
             n = 0
+            self.epoch = epoch
             print(f'Epoch: {epoch+1}: Starting!', end='')
             start = time.time()
             for batch_id, batch in data.enumerate():

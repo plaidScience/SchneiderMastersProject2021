@@ -6,13 +6,12 @@ from .SG_LR_SCHEDULER import StarGANSchedule
 
 class PIX2PIX_DISC(MODEL):
 # pix2pix discriminator, implemented from https://github.com/tensorflow/examples/blob/master/tensorflow_examples/models/pix2pix/pix2pix.py
-    def __init__(self, input_shape, n_classes, output_dir, name='pix2pix_disc'):
-        sg_schedule = StarGANSchedule(0.0001, 10, 10)
+    def __init__(self, input_shape, n_classes, output_dir, lr=StarGANSchedule(0.0001, 10, 10), name='pix2pix_disc'):
         super(PIX2PIX_DISC, self).__init__(
             output_dir,
             name=name,
             model_args={'input_shape':input_shape, 'n_classes':n_classes},
-            optimizer_args={'lr':sg_schedule, 'beta_1':0.5, 'beta_2':0.999}
+            optimizer_args={'lr':lr, 'beta_1':0.5, 'beta_2':0.999}
         )
 
     def _build_model(self, input_shape=[None, None, 3], n_classes=3):
