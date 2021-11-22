@@ -22,34 +22,34 @@ class PIX2PIX_DISC(MODEL):
         x = inp
 
         x = tf.keras.layers.ZeroPadding2D(1)(x)
-        x = tf.keras.layers.Conv2D(64, (4,4), strides=2, padding='none')(x)
+        x = tf.keras.layers.Conv2D(64, (4,4), strides=2, padding='valid')(x)
         x= tf.keras.layers.LeakyReLU()(x)
 
         x = tf.keras.layers.ZeroPadding2D(1)(x)
-        x = tf.keras.layers.Conv2D(128, (4,4), strides=2, padding='none')(x)
+        x = tf.keras.layers.Conv2D(128, (4,4), strides=2, padding='valid')(x)
         x= tf.keras.layers.LeakyReLU()(x)
 
         x = tf.keras.layers.ZeroPadding2D(1)(x)
-        x = tf.keras.layers.Conv2D(256, (4,4), strides=2, padding='none')(x)
+        x = tf.keras.layers.Conv2D(256, (4,4), strides=2, padding='valid')(x)
         x= tf.keras.layers.LeakyReLU()(x)
 
         x = tf.keras.layers.ZeroPadding2D(1)(x)
-        x = tf.keras.layers.Conv2D(512, (4,4), strides=2, padding='none')(x)
+        x = tf.keras.layers.Conv2D(512, (4,4), strides=2, padding='valid')(x)
         x= tf.keras.layers.LeakyReLU()(x)
 
         x = tf.keras.layers.ZeroPadding2D(1)(x)
-        x = tf.keras.layers.Conv2D(1024, (4,4), strides=2, padding='none')(x)
+        x = tf.keras.layers.Conv2D(1024, (4,4), strides=2, padding='valid')(x)
         x= tf.keras.layers.LeakyReLU()(x)
 
         x = tf.keras.layers.ZeroPadding2D(1)(x)
-        x = tf.keras.layers.Conv2D(2048, (4,4), strides=2, padding='none')(x)
+        x = tf.keras.layers.Conv2D(2048, (4,4), strides=2, padding='valid')(x)
         x= tf.keras.layers.LeakyReLU()(x)
 
         
         x1=tf.keras.layers.ZeroPadding2D()(x)
-        src = tf.keras.layers.Conv2D(1, 3, strides=1)(x1)
+        src = tf.keras.layers.Conv2D(1, 3, strides=1, padding='valid')(x1)
 
-        cls = tf.keras.layers.Conv2D(n_classes, (input_shape[-3]//64, input_shape[-2]//64), strides=1)(x)
+        cls = tf.keras.layers.Conv2D(n_classes, (input_shape[-3]//64, input_shape[-2]//64), strides=1, padding='valid')(x)
         cls_flattened = tf.keras.layers.Flatten()(cls)
 
         return tf.keras.Model(inputs=inp, outputs=[src, cls_flattened], name=self.name)

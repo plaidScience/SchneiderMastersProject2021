@@ -29,7 +29,7 @@ class RESNET_GENERATOR(MODEL):
 
         #conv block
         padded = tf.keras.layers.ZeroPadding2D(3)(concat)
-        conv_1 = tf.keras.layers.Conv2D(64, (7,7), padding='none', kernel_initializer=init)(padded)
+        conv_1 = tf.keras.layers.Conv2D(64, (7,7), padding='valid', kernel_initializer=init)(padded)
         norm_1 = InstanceNormalization()(conv_1)
         act_1 = tf.keras.layers.ReLU()(norm_1)
 
