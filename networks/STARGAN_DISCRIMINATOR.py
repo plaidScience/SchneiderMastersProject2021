@@ -15,24 +15,41 @@ class PIX2PIX_DISC(MODEL):
         )
 
     def _build_model(self, input_shape=[None, None, 3], n_classes=3):
-        initializer = tf.random_normal_initializer(0., 0.02)
 
         norm_type='none'
 
         inp = tf.keras.layers.Input(shape=input_shape, name='input_image')
         x = inp
 
-        down1 = DownsampleBlock(64, 4, norm_type, False) (x)
-        down2 = DownsampleBlock(128, 4, norm_type, False) (down1)
-        down3 = DownsampleBlock(256, 4, norm_type, False) (down2)
-        down4 = DownsampleBlock(512, 4, norm_type, False) (down3)
-        down5 = DownsampleBlock(1024, 4, norm_type, False) (down4)
-        down6 = DownsampleBlock(2048, 4, norm_type, False) (down5)
+        x = tf.keras.layers.ZeroPadding2D(1)(x)
+        x = tf.keras.layers.Conv2D(64, (4,4), strides=2, padding='none')(x)
+        x= tf.keras.layers.LeakyReLU()(x)
+
+        x = tf.keras.layers.ZeroPadding2D(1)(x)
+        x = tf.keras.layers.Conv2D(128, (4,4), strides=2, padding='none')(x)
+        x= tf.keras.layers.LeakyReLU()(x)
+
+        x = tf.keras.layers.ZeroPadding2D(1)(x)
+        x = tf.keras.layers.Conv2D(256, (4,4), strides=2, padding='none')(x)
+        x= tf.keras.layers.LeakyReLU()(x)
+
+        x = tf.keras.layers.ZeroPadding2D(1)(x)
+        x = tf.keras.layers.Conv2D(512, (4,4), strides=2, padding='none')(x)
+        x= tf.keras.layers.LeakyReLU()(x)
+
+        x = tf.keras.layers.ZeroPadding2D(1)(x)
+        x = tf.keras.layers.Conv2D(1024, (4,4), strides=2, padding='none')(x)
+        x= tf.keras.layers.LeakyReLU()(x)
+
+        x = tf.keras.layers.ZeroPadding2D(1)(x)
+        x = tf.keras.layers.Conv2D(2048, (4,4), strides=2, padding='none')(x)
+        x= tf.keras.layers.LeakyReLU()(x)
 
         
-        zero_pad2=tf.keras.layers.ZeroPadding2D()(down6)
-        src = tf.keras.layers.Conv2D(1, 3, strides=1, kernel_initializer=initializer)(zero_pad2)
-        cls = tf.keras.layers.Conv2D(n_classes, (input_shape[-3]//64, input_shape[-2]//64), strides=1, kernel_initializer=initializer)(down6)
+        x1=tf.keras.layers.ZeroPadding2D()(x)
+        src = tf.keras.layers.Conv2D(1, 3, strides=1)(x1)
+
+        cls = tf.keras.layers.Conv2D(n_classes, (input_shape[-3]//64, input_shape[-2]//64), strides=1)(x)
         cls_flattened = tf.keras.layers.Flatten()(cls)
 
         return tf.keras.Model(inputs=inp, outputs=[src, cls_flattened], name=self.name)

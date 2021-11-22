@@ -18,14 +18,18 @@ class RESNET_GENERATOR(MODEL):
 
     def _build_model(self, input_shape=[None, None, 3], n_labels=None, n_resnet=6):
         init = tf.random_normal_initializer(0., 0.02)
+
+        #inputs
         inp = tf.keras.Input(shape=input_shape)
         inp_labels = tf.keras.Input(shape=[n_labels])
+
         labels = tf.keras.layers.RepeatVector(input_shape[-3]*input_shape[-2])(inp_labels)
         labels = tf.keras.layers.Reshape((input_shape[-3], input_shape[-2], n_labels)) (labels)
         concat = tf.keras.layers.Concatenate()([inp, labels])
 
-        #conv block 1
-        conv_1 = tf.keras.layers.Conv2D(64, (7,7), padding='same', kernel_initializer=init)(concat)
+        #conv block
+        padded = tf.keras.layers.ZeroPadding2D(3)(concat)
+        conv_1 = tf.keras.layers.Conv2D(64, (7,7), padding='none', kernel_initializer=init)(padded)
         norm_1 = InstanceNormalization()(conv_1)
         act_1 = tf.keras.layers.ReLU()(norm_1)
 

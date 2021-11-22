@@ -106,7 +106,7 @@ class StarGAN():
         return target
     
     def gen_onehot_target(self, batch_size):
-        idx = tf.random.uniform(shape=[], maxval=self.n_classes, dtype=tf.int32)
+        idx = tf.random.uniform(shape=[], minval=0, maxval=self.n_classes, dtype=tf.int32)
         target = tf.one_hot([idx], self.n_classes)
         target = tf.repeat(target, batch_size, axis=0)
         return target
@@ -114,7 +114,7 @@ class StarGAN():
     @tf.function
     def _train_preprocess(self, inp):
         real, cls = inp['image'], inp['label']
-        target = self.gen_target(cls)
+        target = self.gen_onehot_target(tf.shape(cls)[0])
         if self.preprocess_model is not None:
             real = self.preprocess_model(real)
         return real, cls, target
@@ -167,7 +167,7 @@ class StarGAN():
 
         imgs, cls, target = self._train_preprocess(data)
         total_disc_loss = self._train_step_disc(imgs, cls, target)
-        total_gen_loss = self._train_step_gen(imgs, cls, target) if (step)%self.gen_rate == 0 else (-1.0, -1.0, -1.0)
+        total_gen_loss = self._train_step_gen(imgs, cls, target) if (step+1)%self.gen_rate == 0 else (-1.0, -1.0, -1.0)
         
 
         return total_gen_loss, total_disc_loss
@@ -203,7 +203,7 @@ class StarGAN():
             for batch_id, batch in data.enumerate():
                 batch_g, batch_d = self._train_step(batch, batch_id)
 
-                if (batch_id)%self.gen_rate == 0:
+                if (batch_id+1)%self.gen_rate == 0:
                     g_fake, g_cls, g_cyc = batch_g
                     total_gen_loss((g_fake+g_cls*self.LAMBDA_class+g_cyc*self.LAMBDA_cycle))
                     gen_adv_loss(g_fake)
