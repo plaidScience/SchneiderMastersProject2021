@@ -48,7 +48,7 @@ class StarGAN():
         )
         self.checkpoint_manager = tf.train.CheckpointManager(self.checkpoint, os.path.join(self.checkpoint_folder, 'checkpoint'), max_to_keep=5)
 
-        self.xentropy_loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
+        self.xentropy_loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
         self.mae_loss_object = tf.keras.losses.MeanAbsoluteError()
         self.mse_loss_object = tf.keras.losses.MeanSquaredError()
         self.LAMBDA_class = 1
@@ -114,7 +114,7 @@ class StarGAN():
     @tf.function
     def _train_preprocess(self, inp):
         real, cls = inp['image'], inp['label']
-        target = self.gen_onehot_target(tf.shape(cls)[0])
+        target = self.gen_target(cls)
         if self.preprocess_model is not None:
             real = self.preprocess_model(real)
         return real, cls, target
@@ -135,7 +135,7 @@ class StarGAN():
             d_loss_gp = self.gradient_penalty(real, fake)
 
 
-            d_loss = d_loss_real+d_loss_fake+d_loss_cls*self.LAMBDA_class+d_loss_gp*self.LAMBDA_gp
+            d_loss = d_loss_real+d_loss_fake + d_loss_cls*self.LAMBDA_class + d_loss_gp*self.LAMBDA_gp
             
         disc_gradients = d_tape.gradient(d_loss, self.disc.model.trainable_variables)
         self.disc.optimizer.apply_gradients(zip(disc_gradients, self.disc.model.trainable_variables))
@@ -279,13 +279,19 @@ class StarGAN():
 
         return data, sample_batch
 
+    def merge_labels(self, label_1, label_2):
+        final_label = tf.clip_by_value(label_1 + label_2, min=0.0, max=1.0) 
+        return final_label
+
 
     def log_images(self, epoch, batch, target_label, label_str, num_images=5):
         batch = batch['image'][0:num_images]
+        label = batch['label'][0:num_images]
         if self.preprocess_model is not None:
             batch = self.preprocess_model(batch)
         image_size = tf.shape(batch)[-3:].numpy()
         target = tf.repeat([target_label], num_images, axis=0)
+        target = self.merge_labels(target, label)
         predictions = self.gen([batch, target])
         dpi = 100.
         w_pad = 2/72.
