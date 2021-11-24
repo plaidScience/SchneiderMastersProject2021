@@ -17,6 +17,7 @@ def load_celeba(load_dir, features, image_shape=(218, 178, 3)):
     def mapping_func (ds_dict_item):
         image_id = ds_dict_item['image']
         label = ds_dict_item['label']
+        label = tf.cast(label, tf.float32)
 
         raw = tf.io.read_file(load_dir+'img_align_celeba/'+image_id)
         image = tf.io.decode_jpeg(raw, channels=image_shape[2])
