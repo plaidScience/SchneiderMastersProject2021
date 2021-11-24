@@ -283,7 +283,7 @@ class StarGAN():
         return data, sample_batch
 
     def merge_labels(self, label_1, label_2):
-        final_label = tf.clip_by_value(label_1 + label_2, min=0.0, max=1.0) 
+        final_label = tf.clip_by_value(label_1 + label_2, 0.0, 1.0) 
         return final_label
 
 
