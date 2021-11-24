@@ -277,6 +277,9 @@ class StarGAN():
 
         sample_batch = next(iter(data))
 
+        if shuffle:
+            data = data.shuffle((data_count//batch_size)+1, reshuffle_each_iteration=True)
+
         return data, sample_batch
 
     def merge_labels(self, label_1, label_2):
@@ -285,14 +288,14 @@ class StarGAN():
 
 
     def log_images(self, epoch, batch, target_label, label_str, num_images=5):
-        batch = batch['image'][0:num_images]
+        batch_image = batch['image'][0:num_images]
         label = batch['label'][0:num_images]
         if self.preprocess_model is not None:
-            batch = self.preprocess_model(batch)
-        image_size = tf.shape(batch)[-3:].numpy()
+            batch_image = self.preprocess_model(batch_image)
+        image_size = tf.shape(batch_image)[-3:].numpy()
         target = tf.repeat([target_label], num_images, axis=0)
         target = self.merge_labels(target, label)
-        predictions = self.gen([batch, target])
+        predictions = self.gen([batch_image, target])
         dpi = 100.
         w_pad = 2/72.
         h_pad = 2/72.
@@ -310,7 +313,7 @@ class StarGAN():
             img[i] = ax[i].imshow(tf.zeros(image_size))
 
         images_list = []
-        for image, prediction in zip(batch, predictions):
+        for image, prediction in zip(batch_image, predictions):
             img[0].set_data(image*0.5 + 0.5)
             img[1].set_data(prediction*0.5 + 0.5)
             buf = io.BytesIO()
