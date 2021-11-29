@@ -177,6 +177,8 @@ class StarGAN():
         #preprocess data
         data, sample_batch=self._preprocess_data(data, batch_size, True, True)
 
+        hair_locs = ['hair' in lstr.lower() for lstr in label_strs]
+
         one_hot_labels = tf.one_hot(range(self.n_classes), self.n_classes)
 
 
@@ -246,7 +248,7 @@ class StarGAN():
             if (epoch+1)%gen_freq==0:
                 #log translated images in some form (maybe a NxN image tiling of translations?)
                 for i in range(self.n_classes):
-                    self.log_images(epoch, sample_batch, one_hot_labels[i], label_strs[i], num_images=batch_size)
+                    self.log_images(epoch, sample_batch, one_hot_labels[i], label_strs[i], num_images=batch_size, hair_locs=hair_locs)
 
 
             if (epoch + 1) % checkpoint_freq == 0:
@@ -282,19 +284,22 @@ class StarGAN():
 
         return data, sample_batch
 
-    def merge_labels(self, label_1, label_2):
+    def merge_labels(self, label_1, label_2, do_mask=False, mask=[]):
+        if do_mask:
+            label_1 *= mask
         final_label = tf.clip_by_value(label_1 + label_2, 0.0, 1.0) 
         return final_label
 
 
-    def log_images(self, epoch, batch, target_label, label_str, num_images=5):
+    def log_images(self, epoch, batch, target_label, label_str, num_images=5, hair_locs=[]):
         batch_image = batch['image'][0:num_images]
         label = batch['label'][0:num_images]
         if self.preprocess_model is not None:
             batch_image = self.preprocess_model(batch_image)
         image_size = tf.shape(batch_image)[-3:].numpy()
         target = tf.repeat([target_label], num_images, axis=0)
-        target = self.merge_labels(target, label)
+        hair_mask = tf.repeat([0.0 if hair else 1.0 for hair in hair_locs], num_images, axis=0)
+        target = self.merge_labels(target, label, 'hair' in label_str.lower(), hair_mask)
         predictions = self.gen([batch_image, target])
         dpi = 100.
         w_pad = 2/72.
@@ -304,6 +309,8 @@ class StarGAN():
         fig, ax = plt.subplots(1, 2, figsize=(plot_width, plot_height), dpi=dpi)
 
         title = ['input', label_str]
+        suptitle = target_label.to_numpy()
+        fig.suptitle=(f'Target: {suptitle}')
 
         img = [None, None]
 
