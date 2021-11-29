@@ -316,7 +316,7 @@ class StarGAN():
 
         title = ['input', label_str]
         suptitle = target[0].numpy()
-        fig.suptitle(f'Target: {suptitle}', fontsize=8, va='bottom')
+        fig.suptitle(f'Target: {suptitle}',  y=0.02, fontsize=8, va='bottom')
 
         img = [None, None]
 
