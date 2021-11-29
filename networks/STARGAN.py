@@ -172,7 +172,7 @@ class StarGAN():
 
         return total_gen_loss, total_disc_loss
 
-    def train(self, data, label_strs, epochs, start_epoch=0, batch_size=8, log_freq=1, gen_freq=5, checkpoint_freq=5):
+    def train(self, data, label_strs, epochs, start_epoch=0, batch_size=8, log_freq=1, gen_freq=5, checkpoint_freq=5, log_lr=False):
         
         #preprocess data
         data, sample_batch=self._preprocess_data(data, batch_size, True, True)
@@ -221,7 +221,7 @@ class StarGAN():
                 if n%5==0:
                     print(f'\rEpoch: {epoch+1}: Batch {n} completed!', end='')
 
-            print(f'\rEpoch {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed!')
+            print(f'\rEpoch {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed! (lr = {self.gen.optimizer.lr:.03f}, {self._get_lr():.03f}')
             print(f'\t[GENERATOR Loss]: {total_gen_loss.result():.04f}')
             print(f'\t\t[GENERATOR adv]: {gen_adv_loss.result():.04f}')
             print(f'\t\t[GENERATOR cls]: {gen_cls_loss.result():.04f}')
@@ -254,6 +254,12 @@ class StarGAN():
             if (epoch + 1) % checkpoint_freq == 0:
                 ckpt_save_path = self.checkpoint_manager.save()
                 print (f'Epoch {epoch+1}: Saving checkpoint at {ckpt_save_path}')
+            
+            if log_lr:
+                with self.gen.logger.as_default():
+                    tf.summary.scalar('lr', self.gen.optimizer.lr, step=epoch)
+                with self.disc.logger.as_default():
+                    tf.summary.scalar('lr', self.disc.optimizer.lr, step=epoch)
 
 
 
@@ -298,8 +304,8 @@ class StarGAN():
             batch_image = self.preprocess_model(batch_image)
         image_size = tf.shape(batch_image)[-3:].numpy()
         target = tf.repeat([target_label], num_images, axis=0)
-        hair_mask = tf.repeat([0.0 if hair else 1.0 for hair in hair_locs], num_images, axis=0)
-        target = self.merge_labels(target, label, 'hair' in label_str.lower(), hair_mask)
+        hair_mask = tf.repeat([[0.0 if hair else 1.0 for hair in hair_locs]], num_images, axis=0)
+        target = self.merge_labels(label, target, 'hair' in label_str.lower(), hair_mask)
         predictions = self.gen([batch_image, target])
         dpi = 100.
         w_pad = 2/72.
@@ -309,8 +315,8 @@ class StarGAN():
         fig, ax = plt.subplots(1, 2, figsize=(plot_width, plot_height), dpi=dpi)
 
         title = ['input', label_str]
-        suptitle = target_label.to_numpy()
-        fig.suptitle=(f'Target: {suptitle}')
+        suptitle = target[0].numpy()
+        fig.suptitle(f'Target: {suptitle}', fontsize=8, va='bottom')
 
         img = [None, None]
 
