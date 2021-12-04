@@ -13,7 +13,9 @@ class MODEL():
         self.name = name
         self.model = self._build_model(**model_args)
         self.optimizer = self._build_optimizer(**optimizer_args)
-        self.logger = tf.summary.create_file_writer(os.path.join(self.output_dir, 'logs/', f'{self.name}'))
+        self.logger = tf.summary.create_file_writer(os.path.join(self.output_dir, 'logs/train/', f'{self.name}'))
+        self.val_logger = tf.summary.create_file_writer(os.path.join(self.output_dir, 'logs/val/', f'{self.name}'))
+        self.test_logger = tf.summary.create_file_writer(os.path.join(self.output_dir, 'logs/test/', f'{self.name}'))
 
     #call method, takes in input and runs it through model call
     def __call__(self, input, **kwargs):

@@ -14,7 +14,7 @@ def main():
     load_dir = '/media/Data1/CELEBA/'
     labels = ["Blond_Hair", "Brown_Hair", "Black_Hair", "Male", "Young"]
 
-    dataset = CELEBA.load_celeba(load_dir, labels)
+    dataset, test_dataset, val_dataset = CELEBA.load_celeba(load_dir, labels, tt_split=True)
 
     BATCH_SIZE = 16
     IMG_WIDTH = 178
@@ -25,8 +25,9 @@ def main():
 
     preporcess_model = PreprocessModel.get_preprocess_model(IMG_WIDTH, RESCALE_DIM)
 
-    cycleGAN = SG.StarGAN([RESCALE_DIM, RESCALE_DIM, 3], len(labels), './OUTPUT/starGAN_celeba/', preprocess_model=preporcess_model)
-    cycleGAN.train(dataset, labels, EPOCHS, start_epoch=0, batch_size=BATCH_SIZE, log_freq=1, gen_freq=1, checkpoint_freq=5)
+    starGAN = SG.StarGAN([RESCALE_DIM, RESCALE_DIM, 3], len(labels), './OUTPUT/starGAN_celeba/', preprocess_model=preporcess_model)
+    starGAN.train(dataset, labels, EPOCHS, data_val=val_dataset, start_epoch=0, batch_size=BATCH_SIZE, log_freq=1, gen_freq=1, checkpoint_freq=5, log_lr=True)
+    starGAN.test(test_dataset, labels, BATCH_SIZE, log_at=EPOCHS)
 
 if __name__ =='__main__':
     main()
