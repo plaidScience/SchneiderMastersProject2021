@@ -50,7 +50,6 @@ class StarGAN():
 
         self.xentropy_loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
         self.mae_loss_object = tf.keras.losses.MeanAbsoluteError()
-        self.mse_loss_object = tf.keras.losses.MeanSquaredError()
         self.LAMBDA_class = 1
         self.LAMBDA_cycle = 10
         self.LAMBDA_gp = 10
@@ -66,7 +65,7 @@ class StarGAN():
         return gen, disc
     
     def _get_lr(self):
-        computed = 0.0001-((self.epoch+1)-10)*(0.0001/10)
+        computed = 0.0001-((self.epoch+1)-(self.epochs/2))*(0.0001/(self.epochs/2))
         return tf.clip_by_value(computed, 0.0, 0.0001)
 
     def adverserial_loss(self, output):
@@ -77,10 +76,10 @@ class StarGAN():
         x_hat = (alpha*real + (1-alpha)*fake)
         with tf.GradientTape() as t:
             t.watch(x_hat)
-            d_hat = self.disc(x_hat)
+            d_hat, _ = self.disc(x_hat)
         gradients = t.gradient(d_hat, x_hat)
-        ddx = tf.sqrt(tf.reduce_sum(gradients ** 2, axis=[1, 2]))
-        d_regularizer = self.mse_loss_object(ddx, 1.0)
+        ddx = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=[1, 2, 3]))
+        d_regularizer = tf.reduce_mean(tf.square(ddx-1.0))
         return d_regularizer
 
     def classifier_loss(self, images, classes):
@@ -222,7 +221,7 @@ class StarGAN():
     def train(self, data, label_strs, epochs, data_val=None, start_epoch=0, batch_size=8, log_freq=1, gen_freq=5, checkpoint_freq=5, log_lr=False):
         
         #preprocess data
-        data, sample_batch=self._preprocess_data(data, batch_size, True, True)
+        data, sample_batch=self._preprocess_data(data, batch_size, True, True, True)
 
         hair_locs = ['hair' in lstr.lower() for lstr in label_strs]
 
@@ -240,12 +239,14 @@ class StarGAN():
         #d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
         total_disc_loss = tf.keras.metrics.Mean('total_disc_loss', dtype=tf.float32)
         disc_adv_loss = tf.keras.metrics.Mean('disc_adv_loss', dtype=tf.float32)
+        disc_real_adv_loss = tf.keras.metrics.Mean('disc_real_adv_loss', dtype=tf.float32)
+        disc_fake_adv_loss = tf.keras.metrics.Mean('disc_fake_adv_loss', dtype=tf.float32)
         disc_cls_loss = tf.keras.metrics.Mean('disc_cls_loss', dtype=tf.float32)
         disc_grad_loss = tf.keras.metrics.Mean('disc_grad_loss', dtype=tf.float32)
 
         if data_val is not None:
             validate=True
-            data_val, sample_val = self._preprocess_data(data_val, batch_size, True, True)
+            data_val, sample_val = self._preprocess_data(data_val, batch_size, True, True, True)
             #g_loss_fake, g_loss_cls, g_loss_cycled
             total_gen_loss_val = tf.keras.metrics.Mean('total_gen_loss_val', dtype=tf.float32)
             gen_adv_loss_val = tf.keras.metrics.Mean('gen_adv_loss_val', dtype=tf.float32)
@@ -255,12 +256,15 @@ class StarGAN():
             #d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
             total_disc_loss_val = tf.keras.metrics.Mean('total_disc_loss_val', dtype=tf.float32)
             disc_adv_loss_val = tf.keras.metrics.Mean('disc_adv_loss_val', dtype=tf.float32)
+            disc_real_adv_loss_val = tf.keras.metrics.Mean('disc_real_adv_loss_val', dtype=tf.float32)
+            disc_fake_adv_loss_val = tf.keras.metrics.Mean('disc_fake_adv_loss_val', dtype=tf.float32)
             disc_cls_loss_val = tf.keras.metrics.Mean('disc_cls_loss_val', dtype=tf.float32)
             disc_grad_loss_val = tf.keras.metrics.Mean('disc_grad_loss_val', dtype=tf.float32)
         else:
             validate = False
 
 
+        self.epochs = epochs
         for epoch in range(start_epoch, epochs):
             n = 0
             self.epoch = epoch
@@ -279,19 +283,23 @@ class StarGAN():
                 d_real, d_fake, d_cls, d_gp = batch_d
                 total_disc_loss(d_real+d_fake+d_cls+d_gp)
                 disc_adv_loss(d_real+d_fake)
+                disc_real_adv_loss(d_real)
+                disc_fake_adv_loss(d_fake)
                 disc_cls_loss(d_cls)
                 disc_grad_loss(d_gp)
                 n+=1
                 if n%5==0:
                     print(f'\rEpoch: {epoch+1}: Batch {n} completed!', end='')
 
-            print(f'\rEpoch {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed! (lr = {self.gen.optimizer.lr:.03f}, {self._get_lr():.03f}')
+            print(f'\rEpoch {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed!')
             print(f'\t[GENERATOR Loss]: {total_gen_loss.result():.04f}')
             print(f'\t\t[GENERATOR adv]: {gen_adv_loss.result():.04f}')
             print(f'\t\t[GENERATOR cls]: {gen_cls_loss.result():.04f}')
             print(f'\t\t[GENERATOR cyc]: {gen_cyc_loss.result():.04f}')
             print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss.result():.04f}')
             print(f'\t\t[DISCRIMINATOR adv]: {disc_adv_loss.result():.04f}')
+            print(f'\t\t[DISCRIMINATOR adv_real]: {disc_real_adv_loss.result():.04f}')
+            print(f'\t\t[DISCRIMINATOR adv_fake]: {disc_fake_adv_loss.result():.04f}')
             print(f'\t\t[DISCRIMINATOR cls]: {disc_cls_loss.result():.04f}')
             print(f'\t\t[DISCRIMINATOR gp ]: {disc_grad_loss.result():.04f}')
             
@@ -311,19 +319,23 @@ class StarGAN():
                     d_real, d_fake, d_cls, d_gp = batch_d
                     total_disc_loss_val((d_real+d_fake+d_cls+d_gp))
                     disc_adv_loss_val(d_real+d_fake)
+                    disc_real_adv_loss_val(d_real)
+                    disc_fake_adv_loss_val(d_fake)
                     disc_cls_loss_val(d_cls)
                     disc_grad_loss_val(d_gp)
                     n+=1
                     if n%5==0:
                         print(f'\rValidation: {epoch+1}: Batch {n} completed!', end='')
 
-                print(f'\rValidation {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed! (lr = {self.gen.optimizer.lr:.03f}, {self._get_lr():.03f}')
+                print(f'\rValidation {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed!')
                 print(f'\t[GENERATOR Loss]: {total_gen_loss_val.result():.04f}')
                 print(f'\t\t[GENERATOR adv]: {gen_adv_loss_val.result():.04f}')
                 print(f'\t\t[GENERATOR cls]: {gen_cls_loss_val.result():.04f}')
                 print(f'\t\t[GENERATOR cyc]: {gen_cyc_loss_val.result():.04f}')
                 print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss_val.result():.04f}')
                 print(f'\t\t[DISCRIMINATOR adv]: {disc_adv_loss_val.result():.04f}')
+                print(f'\t\t[DISCRIMINATOR adv_real]: {disc_real_adv_loss_val.result():.04f}')
+                print(f'\t\t[DISCRIMINATOR adv_fake]: {disc_fake_adv_loss_val.result():.04f}')
                 print(f'\t\t[DISCRIMINATOR cls]: {disc_cls_loss_val.result():.04f}')
                 print(f'\t\t[DISCRIMINATOR gp ]: {disc_grad_loss_val.result():.04f}')
 
@@ -338,6 +350,8 @@ class StarGAN():
                 with self.disc.logger.as_default():
                     tf.summary.scalar('loss', total_disc_loss.result(), step=epoch)
                     tf.summary.scalar('loss_adv', disc_adv_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_adv_real', disc_real_adv_loss.result(), step=epoch)
+                    tf.summary.scalar('loss_adv_fake', disc_fake_adv_loss.result(), step=epoch)
                     tf.summary.scalar('loss_cls', disc_cls_loss.result(), step=epoch)
                     tf.summary.scalar('loss_gp', disc_grad_loss.result(), step=epoch)
                 
@@ -351,17 +365,21 @@ class StarGAN():
                     with self.disc.val_logger.as_default():
                         tf.summary.scalar('loss', total_disc_loss_val.result(), step=epoch)
                         tf.summary.scalar('loss_adv', disc_adv_loss_val.result(), step=epoch)
+                        tf.summary.scalar('loss_adv_real', disc_real_adv_loss_val.result(), step=epoch)
+                        tf.summary.scalar('loss_adv_fake', disc_fake_adv_loss_val.result(), step=epoch)
                         tf.summary.scalar('loss_cls', disc_cls_loss_val.result(), step=epoch)
                         tf.summary.scalar('loss_gp', disc_grad_loss_val.result(), step=epoch)
 
 
             if (epoch+1)%gen_freq==0:
                 #log translated images in some form (maybe a NxN image tiling of translations?)
-                for i in range(self.n_classes):
-                    self.log_images(epoch, sample_batch, one_hot_labels[i], label_strs[i], num_images=batch_size//2, hair_locs=hair_locs)
+                self.log_image(epoch, sample_batch, one_hot_labels, label_strs, num_images=batch_size, hair_locs=hair_locs)
+                #for i in range(self.n_classes):
+                #    self.log_images(epoch, sample_batch, one_hot_labels[i], label_strs[i], num_images=batch_size//2, hair_locs=hair_locs)
                 if validate:
-                    for i in range(self.n_classes):
-                        self.log_images(epoch, sample_val, one_hot_labels[i], label_strs[i], num_images=batch_size//2, hair_locs=hair_locs, validation=True)
+                    self.log_image(epoch, sample_val, one_hot_labels, label_strs, num_images=batch_size, hair_locs=hair_locs, validation=True)
+                    #for i in range(self.n_classes):
+                    #    self.log_images(epoch, sample_val, one_hot_labels[i], label_strs[i], num_images=batch_size//2, hair_locs=hair_locs, validation=True)
 
 
 
@@ -383,6 +401,8 @@ class StarGAN():
             gen_cyc_loss.reset_states()
             total_disc_loss.reset_states()
             disc_adv_loss.reset_states()
+            disc_real_adv_loss.reset_states()
+            disc_fake_adv_loss.reset_states()
             disc_cls_loss.reset_states()
             disc_grad_loss.reset_states()
             if validate:
@@ -392,13 +412,15 @@ class StarGAN():
                 gen_cyc_loss_val.reset_states()
                 total_disc_loss_val.reset_states()
                 disc_adv_loss.reset_states()
+                disc_real_adv_loss_val.reset_states()
+                disc_fake_adv_loss_val.reset_states()
                 disc_cls_loss_val.reset_states()
                 disc_grad_loss_val.reset_states()
     
     def test(self, data, label_strs, batch_size=8, log_at=-1):
         
         #preprocess data
-        data, sample_batch=self._preprocess_data(data, batch_size, True, True)
+        data, sample_batch=self._preprocess_data(data, batch_size, True, True, True)
 
         hair_locs = ['hair' in lstr.lower() for lstr in label_strs]
 
@@ -416,6 +438,8 @@ class StarGAN():
         #d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
         total_disc_loss = tf.keras.metrics.Mean('total_disc_loss', dtype=tf.float32)
         disc_adv_loss = tf.keras.metrics.Mean('disc_adv_loss', dtype=tf.float32)
+        disc_real_adv_loss = tf.keras.metrics.Mean('disc_real_adv_loss', dtype=tf.float32)
+        disc_fake_adv_loss = tf.keras.metrics.Mean('disc_fake_adv_loss', dtype=tf.float32)
         disc_cls_loss = tf.keras.metrics.Mean('disc_cls_loss', dtype=tf.float32)
         disc_grad_loss = tf.keras.metrics.Mean('disc_grad_loss', dtype=tf.float32)
         print(f'Testing: Starting!', end='')
@@ -429,11 +453,13 @@ class StarGAN():
             total_gen_loss(g_fake+g_cls+g_cyc)
             gen_adv_loss(g_fake)
             gen_cls_loss(g_cls)
-            gen_cyc_loss(g_cyc*self.LAMBDA_cycle)
+            gen_cyc_loss(g_cyc)
             
             d_real, d_fake, d_cls, d_gp = batch_d
             total_disc_loss(d_real+d_fake+d_cls+d_gp)
             disc_adv_loss(d_real+d_fake)
+            disc_real_adv_loss(d_real)
+            disc_fake_adv_loss(d_fake)
             disc_cls_loss(d_cls)
             disc_grad_loss(d_gp)
             n+=1
@@ -447,6 +473,8 @@ class StarGAN():
         print(f'\t\t[GENERATOR cyc]: {gen_cyc_loss.result():.04f}')
         print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss.result():.04f}')
         print(f'\t\t[DISCRIMINATOR adv]: {disc_adv_loss.result():.04f}')
+        print(f'\t\t[DISCRIMINATOR adv_real]: {disc_real_adv_loss.result():.04f}')
+        print(f'\t\t[DISCRIMINATOR adv_fake]: {disc_fake_adv_loss.result():.04f}')
         print(f'\t\t[DISCRIMINATOR cls]: {disc_cls_loss.result():.04f}')
         print(f'\t\t[DISCRIMINATOR gp ]: {disc_grad_loss.result():.04f}')
         with self.gen.test_logger.as_default():
@@ -458,12 +486,15 @@ class StarGAN():
         with self.disc.test_logger.as_default():
             tf.summary.scalar('loss', total_disc_loss.result(), step=log_at)
             tf.summary.scalar('loss_adv', disc_adv_loss.result(), step=log_at)
+            tf.summary.scalar('loss_adv_real', disc_real_adv_loss.result(), step=log_at)
+            tf.summary.scalar('loss_adv_fake', disc_fake_adv_loss.result(), step=log_at)
             tf.summary.scalar('loss_cls', disc_cls_loss.result(), step=log_at)
             tf.summary.scalar('loss_gp', disc_grad_loss.result(), step=log_at)
             
         #log translated images in some form (maybe a NxN image tiling of translations?)
-        for i in range(self.n_classes):
-            self.log_images(log_at, sample_batch, one_hot_labels[i], label_strs[i], num_images=batch_size//2, hair_locs=hair_locs, testing=True)
+        self.log_image(log_at, sample_batch, one_hot_labels, label_strs, num_images=batch_size, hair_locs=hair_locs, testing=True)
+        #for i in range(self.n_classes):
+        #    self.log_images(log_at, sample_batch, one_hot_labels[i], label_strs[i], num_images=batch_size//2, hair_locs=hair_locs, testing=True)
 
         total_gen_loss.reset_states()
         gen_adv_loss.reset_states()
@@ -471,23 +502,25 @@ class StarGAN():
         gen_cyc_loss.reset_states()
         total_disc_loss.reset_states()
         disc_adv_loss.reset_states()
+        disc_real_adv_loss.reset_states()
+        disc_fake_adv_loss.reset_states()
         disc_cls_loss.reset_states()
         disc_grad_loss.reset_states()
 
-    def _preprocess_data(self, data, batch_size, shuffle=True, cache=True):
+    def _preprocess_data(self, data, batch_size, shuffle=True, shuffle_all_every_iteration=True, cache=True):
         
         data_count = tf.data.experimental.cardinality(data).numpy()
         
         if cache:
             data = data.cache()
         if shuffle:
-            data = data.shuffle(data_count)
+            data = data.shuffle(data_count, reshuffle_each_iteration=shuffle_all_every_iteration)
         
         data = data.batch(batch_size)
 
         sample_batch = next(iter(data))
 
-        if shuffle:
+        if shuffle and (not shuffle_all_every_iteration):
             data = data.shuffle((data_count//batch_size)+1, reshuffle_each_iteration=True)
 
         return data, sample_batch
@@ -509,28 +542,30 @@ class StarGAN():
         hair_mask = tf.repeat([[0.0 if hair else 1.0 for hair in hair_locs]], num_images, axis=0)
         target = self.merge_labels(label, target, 'hair' in label_str.lower(), hair_mask)
         predictions = self.gen([batch_image, target])
+        cycled_imgs = self.gen([predictions, label])
         dpi = 100.
         w_pad = 2/72.
         h_pad = 2/72.
         plot_width = (image_size[0]+2*w_pad*image_size[0])*2./dpi
         plot_height = (image_size[1]+2*h_pad*image_size[1])/dpi
-        fig, ax = plt.subplots(1, 2, figsize=(plot_width, plot_height), dpi=dpi)
+        fig, ax = plt.subplots(1, 3, figsize=(plot_width, plot_height), dpi=dpi)
 
-        title = ['input', label_str]
+        title = ['input', label_str, 'cycled']
         suptitle = target[0].numpy()
         fig.suptitle(f'Target: {suptitle}',  y=0.02, fontsize=8, va='bottom')
 
-        img = [None, None]
+        img = [None, None, None]
 
-        for i in range(2):
+        for i in range(3):
             ax[i].set_title(title[i])
             ax[i].axis('off')
             img[i] = ax[i].imshow(tf.zeros(image_size))
 
         images_list = []
-        for image, target_lbl, prediction in zip(batch_image, target, predictions):
+        for image, prediction, target_lbl, cycled in zip(batch_image,predictions, target, cycled_imgs):
             img[0].set_data(image*0.5 + 0.5)
             img[1].set_data(prediction*0.5 + 0.5)
+            img[2].set_data(cycled*0.5 + 0.5)
             buf = io.BytesIO()
             plt.savefig(buf, format='png')
             fig.suptitle(f'Target: {target_lbl.numpy()}',  y=0.02, fontsize=8, va='bottom')
@@ -543,6 +578,48 @@ class StarGAN():
         else: logger = self.gen.logger
         with logger.as_default():
             tf.summary.image(label_str, out_images, max_outputs=num_images, step=epoch)
+        plt.close()
+
+    def log_image(self, epoch, batch, target_labels, label_strs, num_images=5, hair_locs=[], validation=False, testing=False):
+
+        batch_image = batch['image'][0:num_images]
+        label = batch['label'][0:num_images]
+        if self.preprocess_model is not None:
+            batch_image = self.preprocess_model(batch_image)
+        image_size = tf.shape(batch_image)[-3:].numpy()
+        dpi = 100.
+        w_pad = 2/72.
+        h_pad = 2/72.
+        plot_width = (image_size[0]+2*w_pad*image_size[0])/dpi
+        plot_height = (image_size[1]+2*h_pad*image_size[1])/dpi
+        fig, ax = plt.subplots(num_images, len(label_strs)+1, figsize=(plot_width*(len(label_strs)+1), plot_height*num_images), dpi=dpi)
+
+        for i in range(-1, len(label_strs)):
+            if i == -1:
+                title_str = 'Input'
+                images = batch_image
+            else:
+                title_str = label_strs[i]
+                target = tf.repeat([target_labels[i]], num_images, axis=0)
+                hair_mask = tf.repeat([[0.0 if hair else 1.0 for hair in hair_locs]], num_images, axis=0)
+                target = self.merge_labels(label, target, 'hair' in label_strs[i].lower(), hair_mask)
+                images = self.gen([batch_image, target])
+            title = None
+            for j, image in enumerate(images):
+                if title is None:
+                    title = title_str
+                    ax[j, i+1].set_title(title)
+                ax[j, i+1].axis('off')
+                ax[j, i+1].imshow(image*0.5+0.5)
+
+        buf = io.BytesIO()     
+        plt.savefig(buf, format='png')
+        image = tf.image.decode_png(buf.getvalue(), channels=3)
+        if validation: logger = self.gen.val_logger
+        elif testing: logger = self.gen.test_logger
+        else: logger = self.gen.logger
+        with logger.as_default():
+            tf.summary.image('images_graphed', tf.expand_dims(image, 0), step=epoch)
         plt.close()
 
     def save_models(self, path=None):

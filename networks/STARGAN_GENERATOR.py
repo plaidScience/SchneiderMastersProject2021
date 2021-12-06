@@ -7,7 +7,6 @@ from .SG_LR_SCHEDULER import StarGANSchedule
 
 
 class RESNET_GENERATOR(MODEL):
-# resnet generator, based off of https://machinelearningmastery.com/how-to-develop-cyclegan-models-from-scratch-with-keras/
     def __init__(self, input_shape, n_labels, output_dir, lr=StarGANSchedule(0.0001, 10, 10), name='resnet_gen'):
         super(RESNET_GENERATOR, self).__init__(
             output_dir,
@@ -17,7 +16,6 @@ class RESNET_GENERATOR(MODEL):
         )
 
     def _build_model(self, input_shape=[None, None, 3], n_labels=None, n_resnet=6):
-        init = tf.random_normal_initializer(0., 0.02)
 
         #inputs
         inp = tf.keras.Input(shape=input_shape)
@@ -28,18 +26,20 @@ class RESNET_GENERATOR(MODEL):
         concat = tf.keras.layers.Concatenate()([inp, labels])
 
         #conv block
-        padded = tf.keras.layers.ZeroPadding2D(3)(concat)
-        conv_1 = tf.keras.layers.Conv2D(64, (7,7), padding='valid', kernel_initializer=init)(padded)
+        padded_1 = tf.keras.layers.ZeroPadding2D(3)(concat)
+        conv_1 = tf.keras.layers.Conv2D(64, (7,7), strides=1, padding='valid')(padded_1)
         norm_1 = InstanceNormalization()(conv_1)
         act_1 = tf.keras.layers.ReLU()(norm_1)
 
         #conv block 2
-        conv_2 = tf.keras.layers.Conv2D(128, (3,3), strides=2, padding='same', kernel_initializer=init)(act_1)
+        padded_2 = tf.keras.layers.ZeroPadding2D(1)(act_1)
+        conv_2 = tf.keras.layers.Conv2D(128, (4,4), strides=2, padding='valid')(padded_2)
         norm_2 = InstanceNormalization()(conv_2)
         act_2 = tf.keras.layers.ReLU()(norm_2)
 
         #conv block 3
-        conv_3 = tf.keras.layers.Conv2D(256, (3,3), strides=2, padding='same', kernel_initializer=init)(act_2)
+        padded_3 = tf.keras.layers.ZeroPadding2D(1)(act_2)
+        conv_3 = tf.keras.layers.Conv2D(256, (4,4), strides=2, padding='valid')(padded_3)
         norm_3 = InstanceNormalization()(conv_3)
         act_3 = tf.keras.layers.ReLU()(norm_3)
 
@@ -49,15 +49,16 @@ class RESNET_GENERATOR(MODEL):
             resnet_blk = ResnetBlock(256, norm_type='instancenorm')(resnet_blk)
 
         #deconv block 1
-        deconv_1 = tf.keras.layers.Conv2DTranspose(128, (3,3), strides=2, padding='same', kernel_initializer=init)(resnet_blk)
+        deconv_1 = tf.keras.layers.Conv2DTranspose(128, (4,4), strides=2, padding='same')(resnet_blk)
         norm_4 = InstanceNormalization()(deconv_1)
         act_4 = tf.keras.layers.ReLU()(norm_4)
 
-        deconv_2 = tf.keras.layers.Conv2DTranspose(64, (3,3), strides=2, padding='same', kernel_initializer=init)(act_4)
+        deconv_2 = tf.keras.layers.Conv2DTranspose(64, (4,4), strides=2, padding='same')(act_4)
         norm_5 = InstanceNormalization()(deconv_2)
         act_5 = tf.keras.layers.ReLU()(norm_5)
 
-        conv_4 = tf.keras.layers.Conv2D(3, (7,7), padding='same', kernel_initializer=init)(act_5)
+        padded_6 = tf.keras.layers.ZeroPadding2D(3)(act_5)
+        conv_4 = tf.keras.layers.Conv2D(3, (7,7), strides=1, padding='valid')(padded_6)
         norm_6 = InstanceNormalization()(conv_4)
         outp = tf.keras.layers.Activation('tanh')(norm_6)
 
