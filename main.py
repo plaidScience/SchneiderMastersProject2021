@@ -14,6 +14,9 @@ elif i == -3:
 elif i == -4:
     import run_scripts.sc_multicycle.celebA_TESTING_STARGAN_multicycle as to_run
     print("Running test on STARGAN with Multi-Cyclical on celebA local Download")
+elif i == -5:
+    import run_scripts.sg_multitrain.celebA_TESTING_STARGAN_multitrain as to_run
+    print("Running test on STARGAN with Mutli-Cyclical Training on celebA local Download")
 
 
 elif i == 1:
@@ -30,9 +33,12 @@ elif i == 3:
 elif i == 4:
     import run_scripts.sc_multicycle.celebA_local_STARGAN_multicycle as to_run
     print("Running STARGAN with Mutli-Cyclical Loss on celebA local Download")
-
+elif i == 5:
+    import run_scripts.sg_multitrain.celebA_local_STARGAN_multitrain as to_run
+    print("Running STARGAN with Mutli-Cyclical Training on celebA local Download")
+    
 if i >= 3:
-    reload = input("Reload from recent checkpointed model? [y/N]".startswith('y'))
+    reload = input("Reload from recent checkpointed model? [y/N]: ").startswith('y')
     to_run.main(reload)
 else:
     to_run.main()

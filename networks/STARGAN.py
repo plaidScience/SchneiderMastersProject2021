@@ -29,9 +29,9 @@ class StarGAN():
             self.output_dir = os.path.join(output_dir, time_created)
             if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
-                self.restore_model = True
-            else:
                 self.restore_model = False
+            else:
+                self.restore_model = True
         self.input_shape = input_shape
         self.n_classes = n_classes
         
@@ -63,7 +63,7 @@ class StarGAN():
                 if self.checkpoint_manager.latest_checkpoint:
                     self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
                 else:
-                    raise FileNotFoundError("Checkpoint File Can't Be Found!")
+                    raise FileNotFoundError(f"Checkpoint File Can't Be Found in {self.checkpoint_folder}!")
             else:
                 self.load_models()
 
@@ -288,7 +288,7 @@ class StarGAN():
 
 
         self.epochs = epochs
-        for epoch in range(start_epoch, epochs):
+        for epoch in range(start_epoch-1, epochs):
             n = 0
             self.epoch = epoch
             print(f'Epoch: {epoch+1}: Starting!', end='')

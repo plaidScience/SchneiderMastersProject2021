@@ -26,7 +26,7 @@ def main(restore=False):
     preporcess_model = PreprocessModel.get_preprocess_model(IMG_WIDTH, RESCALE_DIM)
 
     if restore:
-        reload_from = input("Input the Date to reload from, in //M_D// format: ")
+        reload_from = input("Input the Date to reload from, in /M_D/H/ format: ")
     else:
         reload_from = None
 
