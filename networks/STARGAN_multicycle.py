@@ -20,48 +20,22 @@ from .STARGAN import StarGAN
 
 class StarGAN_MultiCycle(StarGAN):
     def __init__(self, input_shape, n_classes, ouput_dir, preprocess_model=None, strategy=None):
-        self.time_created = datetime.datetime.now().strftime("%m_%d/%H/")
-        self.output_dir = os.path.join(ouput_dir, self.time_created)
-        self.input_shape = input_shape
-        self.n_classes = n_classes
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
-        
-        self.gen, self.disc = self._create_models('generator', 'discriminator')
-        self.train_step = self._train_step
-
-        print("Generator:")
-        self.gen.summary()
-        print("Discriminator:")
-        self.disc.summary()
-
-        self.preprocess_model = preprocess_model
-
-        self.checkpoint_folder = os.path.join(self.output_dir, 'checkpoints')
-
-        self.checkpoint = tf.train.Checkpoint(
-            gen = self.gen.model,
-            gen_optimizer = self.gen.optimizer,
-            disc = self.disc.model,
-            disc_optimizer = self.disc.optimizer,
-            preprocess_model = self.preprocess_model
-
+        super(StarGAN_MultiCycle, self).__init__(
+            input_shape,
+            n_classes,
+            ouput_dir,
+            preprocess_model=preprocess_model,
+            strategy=strategy
         )
-        self.checkpoint_manager = tf.train.CheckpointManager(self.checkpoint, os.path.join(self.checkpoint_folder, 'checkpoint'), max_to_keep=5)
+        self.LAMBDA_multi = [1.0, 0.25, 0.125, 0.0625]
 
-        self.xentropy_loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-        self.mae_loss_object = tf.keras.losses.MeanAbsoluteError()
-        self.mse_loss_object = tf.keras.losses.MeanSquaredError()
-        self.LAMBDA_class = 1
-        self.LAMBDA_cycle = [10, 5, 2.5, 1.25]
-        self.LAMBDA_gp = 10
-
-        self.gen_rate=5
+        self.gen_loss_keys = ['loss_adv', 'loss_cls', 'loss_cyc', 'loss_multicycle']
+        self.disc_loss_keys = ['loss_adv', 'loss_cls', 'loss_gp']
 
     @tf.function
     def _train_preprocess(self, inp):
         real, cls = inp['image'], inp['label']
-        targets = self.gen_targets(cls, len(self.LAMBDA_cycle))
+        targets = self.gen_targets(cls, len(self.LAMBDA_multi))
         if self.preprocess_model is not None:
             real = self.preprocess_model(real)
         return real, cls, targets
@@ -87,7 +61,7 @@ class StarGAN_MultiCycle(StarGAN):
         disc_gradients = d_tape.gradient(d_loss, self.disc.model.trainable_variables)
         self.disc.optimizer.apply_gradients(zip(disc_gradients, self.disc.model.trainable_variables))
 
-        return d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
+        return (d_loss_real+d_loss_fake), d_loss_cls, d_loss_gp
 
     @tf.function
     def _train_step_gen(self, real, cls, targets):
@@ -98,29 +72,29 @@ class StarGAN_MultiCycle(StarGAN):
             g_loss_fake = - self.adverserial_loss(g_fake)
             g_loss_cls = self.classifier_loss(targets[0], g_fake_pred)*self.LAMBDA_class
 
-            g_loss_cycled = 0
+            g_loss_multi_cycled = 0
 
             cycled = self.gen([fake, cls])
-            g_loss_cycled += self.cycle_loss(real, cycled)*self.LAMBDA_cycle[0]
+            g_loss_cycled = self.cycle_loss(real, cycled)*self.LAMBDA_cycle*self.LAMBDA_multi[0]
 
-            for i in range(1, len(self.LAMBDA_cycle)):
+            for i in range(1, len(self.LAMBDA_multi)):
                 fake = self.gen([fake, targets[i]])
                 cycled = self.gen([fake, cls])
-                g_loss_cycled += self.cycle_loss(real, cycled)*self.LAMBDA_cycle[i]
+                g_loss_multi_cycled += self.cycle_loss(real, cycled)*self.LAMBDA_cycle*self.LAMBDA_multi[i]
 
-            g_loss = g_loss_fake + g_loss_cls + g_loss_cycled
+            g_loss = g_loss_fake + g_loss_cls + g_loss_cycled + g_loss_multi_cycled
 
         gen_gradients = g_tape.gradient(g_loss, self.gen.model.trainable_variables)
         self.gen.optimizer.apply_gradients(zip(gen_gradients, self.gen.model.trainable_variables))
 
-        return g_loss_fake, g_loss_cls, g_loss_cycled
+        return g_loss_fake, g_loss_cls, g_loss_cycled, g_loss_multi_cycled
 
     @tf.function
     def _train_step(self, data, step):
 
         imgs, cls, targets = self._train_preprocess(data)
         total_disc_loss = self._train_step_disc(imgs, cls, targets[0])
-        total_gen_loss = self._train_step_gen(imgs, cls, targets) if (step+1)%self.gen_rate == 0 else (-1.0, -1.0, -1.0)
+        total_gen_loss = self._train_step_gen(imgs, cls, targets) if (step+1)%self.gen_rate == 0 else (-1.0, -1.0, -1.0, -1.0)
         
 
         return total_gen_loss, total_disc_loss
@@ -128,7 +102,7 @@ class StarGAN_MultiCycle(StarGAN):
     @tf.function
     def _test_preprocess(self, inp, is_training=False):
         real, cls = inp['image'], inp['label']
-        targets = self.gen_targets(cls, len(self.LAMBDA_cycle))
+        targets = self.gen_targets(cls, len(self.LAMBDA_multi))
         if self.preprocess_model is not None:
             real = self.preprocess_model(real, training=is_training)
         return real, cls, targets
@@ -147,7 +121,7 @@ class StarGAN_MultiCycle(StarGAN):
 
         d_loss_gp = self.gradient_penalty(real, fake)*self.LAMBDA_gp
 
-        return d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
+        return (d_loss_real+d_loss_fake), d_loss_cls, d_loss_gp
 
     @tf.function
     def _test_step_gen(self, real, cls, targets, is_training=False):
@@ -159,17 +133,17 @@ class StarGAN_MultiCycle(StarGAN):
         g_loss_fake = - self.adverserial_loss(g_fake)
         g_loss_cls = self.classifier_loss(targets[0], g_fake_pred)*self.LAMBDA_class
 
-        g_loss_cycled = 0
+        g_loss_multi_cycled = 0
 
         cycled = self.gen([fake, cls])
-        g_loss_cycled += self.cycle_loss(real, cycled)*self.LAMBDA_cycle[0]
+        g_loss_cycled = self.cycle_loss(real, cycled)*self.LAMBDA_cycle*self.LAMBDA_multi[0]
 
-        for i in range(1, len(self.LAMBDA_cycle)):
+        for i in range(1, len(self.LAMBDA_multi)):
             fake = self.gen([fake, targets[i]])
             cycled = self.gen([fake, cls])
-            g_loss_cycled += self.cycle_loss(real, cycled)*self.LAMBDA_cycle[i]
+            g_loss_multi_cycled += self.cycle_loss(real, cycled)*self.LAMBDA_cycle*self.LAMBDA_multi[i]
 
-        return g_loss_fake, g_loss_cls, g_loss_cycled
+        return g_loss_fake, g_loss_cls, g_loss_cycled, g_loss_multi_cycled
 
     @tf.function
     def _test_step(self, data, step, is_training=False):

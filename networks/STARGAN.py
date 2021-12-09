@@ -56,6 +56,9 @@ class StarGAN():
 
         self.gen_rate=5
 
+        self.gen_loss_keys = ['loss_adv', 'loss_cls', 'loss_cyc']
+        self.disc_loss_keys = ['loss_adv', 'loss_cls', 'loss_gp']
+
 
     def _create_models(self, gen_name, disc_name):
         gen = generator.RESNET_GENERATOR(self.input_shape, self.n_classes, self.output_dir, lr=self._get_lr, name=gen_name)
@@ -109,6 +112,9 @@ class StarGAN():
         target = tf.one_hot([idx], self.n_classes)
         target = tf.repeat(target, batch_size, axis=0)
         return target
+    
+    #def gen_inv_target(self, cls):
+    #    return targets
 
     @tf.function
     def _train_preprocess(self, inp):
@@ -139,7 +145,7 @@ class StarGAN():
         disc_gradients = d_tape.gradient(d_loss, self.disc.model.trainable_variables)
         self.disc.optimizer.apply_gradients(zip(disc_gradients, self.disc.model.trainable_variables))
 
-        return d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
+        return (d_loss_real+d_loss_fake), d_loss_cls, d_loss_gp
 
     @tf.function
     def _train_step_gen(self, real, cls, target):
@@ -193,7 +199,7 @@ class StarGAN():
 
         d_loss_gp = self.gradient_penalty(real, fake)*self.LAMBDA_gp
 
-        return d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
+        return (d_loss_real+d_loss_fake), d_loss_cls, d_loss_gp
 
     @tf.function
     def _test_step_gen(self, real, cls, target, is_training=False):
@@ -232,34 +238,30 @@ class StarGAN():
 
         #g_loss_fake, g_loss_cls, g_loss_cycled
         total_gen_loss = tf.keras.metrics.Mean('total_gen_loss', dtype=tf.float32)
-        gen_adv_loss = tf.keras.metrics.Mean('gen_adv_loss', dtype=tf.float32)
-        gen_cls_loss = tf.keras.metrics.Mean('gen_cls_loss', dtype=tf.float32)
-        gen_cyc_loss = tf.keras.metrics.Mean('gen_cyc_loss', dtype=tf.float32)
+        gen_losses = []
+        for i in self.gen_loss_keys:
+            gen_losses.append(tf.keras.metrics.Mean('gen_'+i, dtype=tf.float32))
 
         #d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
         total_disc_loss = tf.keras.metrics.Mean('total_disc_loss', dtype=tf.float32)
-        disc_adv_loss = tf.keras.metrics.Mean('disc_adv_loss', dtype=tf.float32)
-        disc_real_adv_loss = tf.keras.metrics.Mean('disc_real_adv_loss', dtype=tf.float32)
-        disc_fake_adv_loss = tf.keras.metrics.Mean('disc_fake_adv_loss', dtype=tf.float32)
-        disc_cls_loss = tf.keras.metrics.Mean('disc_cls_loss', dtype=tf.float32)
-        disc_grad_loss = tf.keras.metrics.Mean('disc_grad_loss', dtype=tf.float32)
+        disc_losses = []
+        for i in self.disc_loss_keys:
+            disc_losses.append(tf.keras.metrics.Mean('disc_'+i, dtype=tf.float32))
 
         if data_val is not None:
             validate=True
             data_val, sample_val = self._preprocess_data(data_val, batch_size, True, True, True)
             #g_loss_fake, g_loss_cls, g_loss_cycled
             total_gen_loss_val = tf.keras.metrics.Mean('total_gen_loss_val', dtype=tf.float32)
-            gen_adv_loss_val = tf.keras.metrics.Mean('gen_adv_loss_val', dtype=tf.float32)
-            gen_cls_loss_val = tf.keras.metrics.Mean('gen_cls_loss_val', dtype=tf.float32)
-            gen_cyc_loss_val = tf.keras.metrics.Mean('gen_cyc_loss_val', dtype=tf.float32)
+            gen_val_losses = []
+            for i in self.gen_loss_keys:
+                gen_val_losses.append(tf.keras.metrics.Mean('gen_val_'+i, dtype=tf.float32))
 
             #d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
             total_disc_loss_val = tf.keras.metrics.Mean('total_disc_loss_val', dtype=tf.float32)
-            disc_adv_loss_val = tf.keras.metrics.Mean('disc_adv_loss_val', dtype=tf.float32)
-            disc_real_adv_loss_val = tf.keras.metrics.Mean('disc_real_adv_loss_val', dtype=tf.float32)
-            disc_fake_adv_loss_val = tf.keras.metrics.Mean('disc_fake_adv_loss_val', dtype=tf.float32)
-            disc_cls_loss_val = tf.keras.metrics.Mean('disc_cls_loss_val', dtype=tf.float32)
-            disc_grad_loss_val = tf.keras.metrics.Mean('disc_grad_loss_val', dtype=tf.float32)
+            disc_val_losses = []
+            for i in self.disc_loss_keys:
+                disc_val_losses.append(tf.keras.metrics.Mean('disc_val_'+i, dtype=tf.float32))
         else:
             validate = False
 
@@ -274,34 +276,24 @@ class StarGAN():
                 batch_g, batch_d = self._train_step(batch, batch_id)
 
                 if (batch_id+1)%self.gen_rate == 0:
-                    g_fake, g_cls, g_cyc = batch_g
-                    total_gen_loss(g_fake+g_cls+g_cyc)
-                    gen_adv_loss(g_fake)
-                    gen_cls_loss(g_cls)
-                    gen_cyc_loss(g_cyc*self.LAMBDA_cycle)
+                    total_gen_loss(tf.math.reduce_sum(batch_g))
+                    for i in range(len(gen_losses)):
+                        gen_losses[i](batch_g[i])
 
-                d_real, d_fake, d_cls, d_gp = batch_d
-                total_disc_loss(d_real+d_fake+d_cls+d_gp)
-                disc_adv_loss(d_real+d_fake)
-                disc_real_adv_loss(d_real)
-                disc_fake_adv_loss(d_fake)
-                disc_cls_loss(d_cls)
-                disc_grad_loss(d_gp)
+                total_disc_loss(tf.math.reduce_sum(batch_d))
+                for i in range(len(disc_losses)):
+                    disc_losses[i](batch_d[i])
                 n+=1
                 if n%5==0:
                     print(f'\rEpoch: {epoch+1}: Batch {n} completed!', end='')
 
             print(f'\rEpoch {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed!')
             print(f'\t[GENERATOR Loss]: {total_gen_loss.result():.04f}')
-            print(f'\t\t[GENERATOR adv]: {gen_adv_loss.result():.04f}')
-            print(f'\t\t[GENERATOR cls]: {gen_cls_loss.result():.04f}')
-            print(f'\t\t[GENERATOR cyc]: {gen_cyc_loss.result():.04f}')
+            for i in range(len(gen_losses)):
+                print(f'\t\t[GENERATOR {self.gen_loss_keys[i]}]: {gen_losses[i].result():.04f}')
             print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss.result():.04f}')
-            print(f'\t\t[DISCRIMINATOR adv]: {disc_adv_loss.result():.04f}')
-            print(f'\t\t[DISCRIMINATOR adv_real]: {disc_real_adv_loss.result():.04f}')
-            print(f'\t\t[DISCRIMINATOR adv_fake]: {disc_fake_adv_loss.result():.04f}')
-            print(f'\t\t[DISCRIMINATOR cls]: {disc_cls_loss.result():.04f}')
-            print(f'\t\t[DISCRIMINATOR gp ]: {disc_grad_loss.result():.04f}')
+            for i in range(len(disc_losses)):
+                print(f'\t\t[DISCRIMINATOR {self.disc_loss_keys[i]}]: {disc_losses[i].result():.04f}')
             
             if validate:
                 print(f'Validation: {epoch+1}: Starting!', end='')
@@ -310,65 +302,47 @@ class StarGAN():
                 for batch_id, batch in data_val.enumerate():
                     batch_g, batch_d = self._test_step(batch, batch_id)
 
-                    g_fake, g_cls, g_cyc = batch_g
-                    total_gen_loss_val((g_fake+g_cls+g_cyc))
-                    gen_adv_loss_val(g_fake)
-                    gen_cls_loss_val(g_cls)
-                    gen_cyc_loss_val(g_cyc)
-                    
-                    d_real, d_fake, d_cls, d_gp = batch_d
-                    total_disc_loss_val((d_real+d_fake+d_cls+d_gp))
-                    disc_adv_loss_val(d_real+d_fake)
-                    disc_real_adv_loss_val(d_real)
-                    disc_fake_adv_loss_val(d_fake)
-                    disc_cls_loss_val(d_cls)
-                    disc_grad_loss_val(d_gp)
+                    total_gen_loss_val(tf.math.reduce_sum(batch_g))
+                    for i in range(len(gen_val_losses)):
+                        gen_val_losses[i](batch_g[i])
+
+                    total_disc_loss_val(tf.math.reduce_sum(batch_d))
+                    for i in range(len(disc_val_losses)):
+                        disc_val_losses[i](batch_d[i])
                     n+=1
                     if n%5==0:
                         print(f'\rValidation: {epoch+1}: Batch {n} completed!', end='')
 
                 print(f'\rValidation {epoch+1} completed in {time.time()-start:.0f}, Total {n} Batches completed!')
                 print(f'\t[GENERATOR Loss]: {total_gen_loss_val.result():.04f}')
-                print(f'\t\t[GENERATOR adv]: {gen_adv_loss_val.result():.04f}')
-                print(f'\t\t[GENERATOR cls]: {gen_cls_loss_val.result():.04f}')
-                print(f'\t\t[GENERATOR cyc]: {gen_cyc_loss_val.result():.04f}')
+                for i in range(len(gen_val_losses)):
+                    print(f'\t\t[GENERATOR {self.gen_loss_keys[i]}]: {gen_val_losses[i].result():.04f}')
                 print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss_val.result():.04f}')
-                print(f'\t\t[DISCRIMINATOR adv]: {disc_adv_loss_val.result():.04f}')
-                print(f'\t\t[DISCRIMINATOR adv_real]: {disc_real_adv_loss_val.result():.04f}')
-                print(f'\t\t[DISCRIMINATOR adv_fake]: {disc_fake_adv_loss_val.result():.04f}')
-                print(f'\t\t[DISCRIMINATOR cls]: {disc_cls_loss_val.result():.04f}')
-                print(f'\t\t[DISCRIMINATOR gp ]: {disc_grad_loss_val.result():.04f}')
+                for i in range(len(disc_val_losses)):
+                    print(f'\t\t[DISCRIMINATOR {self.disc_loss_keys[i]}]: {disc_val_losses[i].result():.04f}')
 
 
             if (epoch+1)%log_freq==0:
                 with self.gen.logger.as_default():
                     tf.summary.scalar('loss', total_gen_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_adv', gen_adv_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_cls', gen_cls_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_cyc', gen_cyc_loss.result(), step=epoch)
+                    for i in range(len(gen_losses)):
+                        tf.summary.scalar(self.gen_loss_keys[i], gen_losses[i].result(), step=epoch)
 
                 with self.disc.logger.as_default():
                     tf.summary.scalar('loss', total_disc_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_adv', disc_adv_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_adv_real', disc_real_adv_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_adv_fake', disc_fake_adv_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_cls', disc_cls_loss.result(), step=epoch)
-                    tf.summary.scalar('loss_gp', disc_grad_loss.result(), step=epoch)
+                    for i in range(len(disc_losses)):
+                        tf.summary.scalar(self.disc_loss_keys[i], disc_losses[i].result(), step=epoch)
                 
                 if validate:
                     with self.gen.val_logger.as_default():
                         tf.summary.scalar('loss', total_gen_loss_val.result(), step=epoch)
-                        tf.summary.scalar('loss_adv', gen_adv_loss_val.result(), step=epoch)
-                        tf.summary.scalar('loss_cls', gen_cls_loss_val.result(), step=epoch)
-                        tf.summary.scalar('loss_cyc', gen_cyc_loss_val.result(), step=epoch)
+                        for i in range(len(gen_val_losses)):
+                            tf.summary.scalar(self.gen_loss_keys[i], gen_val_losses[i].result(), step=epoch)
 
                     with self.disc.val_logger.as_default():
                         tf.summary.scalar('loss', total_disc_loss_val.result(), step=epoch)
-                        tf.summary.scalar('loss_adv', disc_adv_loss_val.result(), step=epoch)
-                        tf.summary.scalar('loss_adv_real', disc_real_adv_loss_val.result(), step=epoch)
-                        tf.summary.scalar('loss_adv_fake', disc_fake_adv_loss_val.result(), step=epoch)
-                        tf.summary.scalar('loss_cls', disc_cls_loss_val.result(), step=epoch)
-                        tf.summary.scalar('loss_gp', disc_grad_loss_val.result(), step=epoch)
+                        for i in range(len(disc_val_losses)):
+                            tf.summary.scalar(self.disc_loss_keys[i], disc_val_losses[i].result(), step=epoch)
 
 
             if (epoch+1)%gen_freq==0:
@@ -396,26 +370,18 @@ class StarGAN():
 
 
             total_gen_loss.reset_states()
-            gen_adv_loss.reset_states()
-            gen_cls_loss.reset_states()
-            gen_cyc_loss.reset_states()
+            for i in range(len(gen_losses)):
+                gen_losses[i].reset_states()
             total_disc_loss.reset_states()
-            disc_adv_loss.reset_states()
-            disc_real_adv_loss.reset_states()
-            disc_fake_adv_loss.reset_states()
-            disc_cls_loss.reset_states()
-            disc_grad_loss.reset_states()
+            for i in range(len(disc_losses)):
+                disc_losses[i].reset_states()
             if validate:
                 total_gen_loss_val.reset_states()
-                gen_adv_loss_val.reset_states()
-                gen_cls_loss_val.reset_states()
-                gen_cyc_loss_val.reset_states()
+                for i in range(len(gen_val_losses)):
+                    gen_val_losses[i].reset_states()
                 total_disc_loss_val.reset_states()
-                disc_adv_loss.reset_states()
-                disc_real_adv_loss_val.reset_states()
-                disc_fake_adv_loss_val.reset_states()
-                disc_cls_loss_val.reset_states()
-                disc_grad_loss_val.reset_states()
+                for i in range(len(disc_val_losses)):
+                    disc_val_losses[i].reset_states()
     
     def test(self, data, label_strs, batch_size=8, log_at=-1):
         
@@ -429,19 +395,16 @@ class StarGAN():
 
 
 
-        #g_loss_fake, g_loss_cls, g_loss_cycled
         total_gen_loss = tf.keras.metrics.Mean('total_gen_loss', dtype=tf.float32)
-        gen_adv_loss = tf.keras.metrics.Mean('gen_adv_loss', dtype=tf.float32)
-        gen_cls_loss = tf.keras.metrics.Mean('gen_cls_loss', dtype=tf.float32)
-        gen_cyc_loss = tf.keras.metrics.Mean('gen_cyc_loss', dtype=tf.float32)
+        gen_losses = []
+        for i in self.gen_loss_keys:
+            gen_losses.append(tf.keras.metrics.Mean('gen_'+i, dtype=tf.float32))
 
         #d_loss_real, d_loss_fake, d_loss_cls, d_loss_gp
         total_disc_loss = tf.keras.metrics.Mean('total_disc_loss', dtype=tf.float32)
-        disc_adv_loss = tf.keras.metrics.Mean('disc_adv_loss', dtype=tf.float32)
-        disc_real_adv_loss = tf.keras.metrics.Mean('disc_real_adv_loss', dtype=tf.float32)
-        disc_fake_adv_loss = tf.keras.metrics.Mean('disc_fake_adv_loss', dtype=tf.float32)
-        disc_cls_loss = tf.keras.metrics.Mean('disc_cls_loss', dtype=tf.float32)
-        disc_grad_loss = tf.keras.metrics.Mean('disc_grad_loss', dtype=tf.float32)
+        disc_losses = []
+        for i in self.disc_loss_keys:
+            disc_losses.append(tf.keras.metrics.Mean('disc_'+i, dtype=tf.float32))
         print(f'Testing: Starting!', end='')
         start = time.time()
         n=0
@@ -449,47 +412,35 @@ class StarGAN():
 
             batch_g, batch_d = self._test_step(batch, batch_id)
 
-            g_fake, g_cls, g_cyc = batch_g
-            total_gen_loss(g_fake+g_cls+g_cyc)
-            gen_adv_loss(g_fake)
-            gen_cls_loss(g_cls)
-            gen_cyc_loss(g_cyc)
             
-            d_real, d_fake, d_cls, d_gp = batch_d
-            total_disc_loss(d_real+d_fake+d_cls+d_gp)
-            disc_adv_loss(d_real+d_fake)
-            disc_real_adv_loss(d_real)
-            disc_fake_adv_loss(d_fake)
-            disc_cls_loss(d_cls)
-            disc_grad_loss(d_gp)
+            total_gen_loss(tf.math.reduce_sum(batch_g))
+            for i in range(len(gen_losses)):
+                gen_losses[i](batch_g[i])
+
+            total_disc_loss(tf.math.reduce_sum(batch_d))
+            for i in range(len(disc_losses)):
+                disc_losses[i](batch_d[i])
             n+=1
             if n%5==0:
                 print(f'\rTesting: Batch {n} completed!', end='')
 
-        print(f'\rTesting completed in {time.time()-start:.0f}, Total {n} Batches completed! (lr = {self.gen.optimizer.lr:.03f}, {self._get_lr():.03f}')
+        print(f'\rTesting completed in {time.time()-start:.0f}, Total {n} Batches completed!')
         print(f'\t[GENERATOR Loss]: {total_gen_loss.result():.04f}')
-        print(f'\t\t[GENERATOR adv]: {gen_adv_loss.result():.04f}')
-        print(f'\t\t[GENERATOR cls]: {gen_cls_loss.result():.04f}')
-        print(f'\t\t[GENERATOR cyc]: {gen_cyc_loss.result():.04f}')
+        for i in range(len(gen_losses)):
+            print(f'\t\t[GENERATOR {self.gen_loss_keys[i]}]: {gen_losses[i].result():.04f}')
         print(f'\t[DISCRIMINATOR Loss]: {total_disc_loss.result():.04f}')
-        print(f'\t\t[DISCRIMINATOR adv]: {disc_adv_loss.result():.04f}')
-        print(f'\t\t[DISCRIMINATOR adv_real]: {disc_real_adv_loss.result():.04f}')
-        print(f'\t\t[DISCRIMINATOR adv_fake]: {disc_fake_adv_loss.result():.04f}')
-        print(f'\t\t[DISCRIMINATOR cls]: {disc_cls_loss.result():.04f}')
-        print(f'\t\t[DISCRIMINATOR gp ]: {disc_grad_loss.result():.04f}')
+        for i in range(len(disc_losses)):
+            print(f'\t\t[DISCRIMINATOR {self.disc_loss_keys[i]}]: {disc_losses[i].result():.04f}')
+
         with self.gen.test_logger.as_default():
             tf.summary.scalar('loss', total_gen_loss.result(), step=log_at)
-            tf.summary.scalar('loss_adv', gen_adv_loss.result(), step=log_at)
-            tf.summary.scalar('loss_cls', gen_cls_loss.result(), step=log_at)
-            tf.summary.scalar('loss_cyc', gen_cyc_loss.result(), step=log_at)
+            for i in range(len(gen_losses)):
+               tf.summary.scalar(self.gen_loss_keys[i], gen_losses[i].result(), step=log_at)
 
         with self.disc.test_logger.as_default():
             tf.summary.scalar('loss', total_disc_loss.result(), step=log_at)
-            tf.summary.scalar('loss_adv', disc_adv_loss.result(), step=log_at)
-            tf.summary.scalar('loss_adv_real', disc_real_adv_loss.result(), step=log_at)
-            tf.summary.scalar('loss_adv_fake', disc_fake_adv_loss.result(), step=log_at)
-            tf.summary.scalar('loss_cls', disc_cls_loss.result(), step=log_at)
-            tf.summary.scalar('loss_gp', disc_grad_loss.result(), step=log_at)
+            for i in range(len(disc_losses)):
+                tf.summary.scalar(self.disc_loss_keys[i], disc_losses[i].result(), step=log_at)
             
         #log translated images in some form (maybe a NxN image tiling of translations?)
         self.log_image(log_at, sample_batch, one_hot_labels, label_strs, num_images=batch_size, hair_locs=hair_locs, testing=True)
@@ -497,15 +448,11 @@ class StarGAN():
         #    self.log_images(log_at, sample_batch, one_hot_labels[i], label_strs[i], num_images=batch_size//2, hair_locs=hair_locs, testing=True)
 
         total_gen_loss.reset_states()
-        gen_adv_loss.reset_states()
-        gen_cls_loss.reset_states()
-        gen_cyc_loss.reset_states()
+        for i in range(len(gen_losses)):
+            gen_losses[i].reset_states()
         total_disc_loss.reset_states()
-        disc_adv_loss.reset_states()
-        disc_real_adv_loss.reset_states()
-        disc_fake_adv_loss.reset_states()
-        disc_cls_loss.reset_states()
-        disc_grad_loss.reset_states()
+        for i in range(len(disc_losses)):
+            disc_losses[i].reset_states()
 
     def _preprocess_data(self, data, batch_size, shuffle=True, shuffle_all_every_iteration=True, cache=True):
         
