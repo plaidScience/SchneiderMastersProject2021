@@ -18,13 +18,23 @@ from . import STARGAN_DISCRIMINATOR as discriminator
 
 
 class StarGAN():
-    def __init__(self, input_shape, n_classes, ouput_dir, preprocess_model=None, strategy=None):
-        self.time_created = datetime.datetime.now().strftime("%m_%d/%H/")
-        self.output_dir = os.path.join(ouput_dir, self.time_created)
+    def __init__(self, input_shape, n_classes, output_dir, time_created=None, preprocess_model=None, strategy=None, restore_model_from_checkpoint = True):
+        if time_created is None:
+            time_created = datetime.datetime.now().strftime("%m_%d/%H/")
+            self.output_dir = os.path.join(output_dir, time_created)
+            if not os.path.exists(self.output_dir):
+                os.makedirs(self.output_dir)
+            self.restore_model = True
+        else:
+            self.output_dir = os.path.join(output_dir, time_created)
+            if not os.path.exists(self.output_dir):
+                os.makedirs(self.output_dir)
+                self.restore_model = True
+            else:
+                self.restore_model = False
         self.input_shape = input_shape
         self.n_classes = n_classes
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+        
         
         self.gen, self.disc = self._create_models('generator', 'discriminator')
         self.train_step = self._train_step
@@ -47,6 +57,17 @@ class StarGAN():
 
         )
         self.checkpoint_manager = tf.train.CheckpointManager(self.checkpoint, os.path.join(self.checkpoint_folder, 'checkpoint'), max_to_keep=5)
+
+        if self.restore_model:
+            if restore_model_from_checkpoint:
+                if self.checkpoint_manager.latest_checkpoint:
+                    self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
+                else:
+                    raise FileNotFoundError("Checkpoint File Can't Be Found!")
+            else:
+                self.load_models()
+
+        
 
         self.xentropy_loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
         self.mae_loss_object = tf.keras.losses.MeanAbsoluteError()

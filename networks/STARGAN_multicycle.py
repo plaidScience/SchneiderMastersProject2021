@@ -19,13 +19,15 @@ from .STARGAN import StarGAN
 
 
 class StarGAN_MultiCycle(StarGAN):
-    def __init__(self, input_shape, n_classes, ouput_dir, preprocess_model=None, strategy=None):
+    def __init__(self, input_shape, n_classes, output_dir, time_created=None, preprocess_model=None, strategy=None, restore_model_from_checkpoint = True):
         super(StarGAN_MultiCycle, self).__init__(
             input_shape,
             n_classes,
-            ouput_dir,
+            output_dir,
+            time_created=time_created,
             preprocess_model=preprocess_model,
-            strategy=strategy
+            strategy=strategy,
+            restore_model_from_checkpoint=restore_model_from_checkpoint
         )
         self.LAMBDA_multi = [1.0, 0.25, 0.125, 0.0625]
 
