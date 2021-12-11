@@ -83,7 +83,7 @@ class StarGAN_MultiCycle(StarGAN):
                 g_fake, g_fake_pred = self.disc(fake)
 
                 g_loss_multi -= self.adverserial_loss(g_fake)*self.LAMBDA_multi[i]
-                g_loss_multi += self.classifier_loss(targets[0], g_fake_pred)*self.LAMBDA_class*self.LAMBDA_multi[i]
+                g_loss_multi += self.classifier_loss(targets[i], g_fake_pred)*self.LAMBDA_class*self.LAMBDA_multi[i]
 
                 cycled = self.gen([fake, cls])
                 g_loss_multi += self.cycle_loss(real, cycled)*self.LAMBDA_cycle*self.LAMBDA_multi[i]
