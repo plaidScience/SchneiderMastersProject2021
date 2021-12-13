@@ -39,6 +39,7 @@ elif i == 5:
     
 if i >= 3:
     reload = input("Reload from recent checkpointed model? [y/N]: ").startswith('y')
+    print(reload)
     to_run.main(reload)
 else:
     to_run.main()

@@ -31,7 +31,7 @@ def main():
     preporcess_model = PreprocessModel.get_preprocess_model(IMG_WIDTH, RESCALE_DIM)
 
     starGAN = SG_multi.StarGAN_MultiCycle([RESCALE_DIM, RESCALE_DIM, 3], len(labels), './OUTPUT/sg_multitrain_celeba_TEST/', preprocess_model=preporcess_model)
-    starGAN.train(dataset, labels, EPOCHS, data_val=val, start_epoch=0, batch_size=BATCH_SIZE, log_freq=1, gen_freq=1, checkpoint_freq=5, log_lr=True)
+    starGAN.train(dataset, labels, EPOCHS, data_val=val, start_epoch=1, batch_size=BATCH_SIZE, log_freq=1, gen_freq=1, checkpoint_freq=5, log_lr=True)
     starGAN.test(test, labels, BATCH_SIZE, log_at=EPOCHS)
 
 if __name__ =='__main__':

@@ -26,8 +26,6 @@ class MODEL():
                 save_path=None, #path to save to, if None, saved to default path
                 **kwargs #kwargs for save function, if compile is not included, compile is set to false
                 ):
-        if 'compile' not in kwargs:
-            kwargs.update(compile = False)
         if save_path is None:
             save_path = os.path.join(self.output_dir, 'saved_models', f'{self.name}/')
         self.model.save(save_path, **kwargs)

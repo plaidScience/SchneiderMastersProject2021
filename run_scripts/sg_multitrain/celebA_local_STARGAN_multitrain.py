@@ -16,7 +16,7 @@ def main(restore=False):
 
     dataset, test_dataset, val_dataset = CELEBA.load_celeba(load_dir, labels, tt_split=True)
 
-    BATCH_SIZE = 16
+    BATCH_SIZE = 8
     IMG_WIDTH = 178
     IMG_HEIGHT = 218
     
@@ -41,7 +41,7 @@ def main(restore=False):
     if restore:
         start_epoch = int(input("Input the epoch to start from: "))
     else:
-        start_epoch=0
+        start_epoch=1
     
     starGAN.train(
         dataset, labels, EPOCHS,

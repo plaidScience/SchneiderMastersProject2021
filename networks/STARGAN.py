@@ -24,7 +24,7 @@ class StarGAN():
             self.output_dir = os.path.join(output_dir, time_created)
             if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
-            self.restore_model = True
+            self.restore_model = False
         else:
             self.output_dir = os.path.join(output_dir, time_created)
             if not os.path.exists(self.output_dir):
@@ -134,8 +134,16 @@ class StarGAN():
         target = tf.repeat(target, batch_size, axis=0)
         return target
     
-    #def gen_inv_target(self, cls):
-    #    return targets
+    def gen_inv_target(self, cls, mask):
+
+        idxs = []
+        for i, mask_i in enumerate(mask):
+            if mask_i == 1.0:
+                idxs.append(i)
+        random_mask_val = tf.one_hot(tf.random.shuffle(idxs)[0], self.n_classes, 1, 0, dtype=tf.float32)
+        targets = (1-cls)*(1-mask) + random_mask_val
+
+        return targets
 
     @tf.function
     def _train_preprocess(self, inp):
@@ -245,14 +253,14 @@ class StarGAN():
         
         return total_gen_loss, total_disc_loss
 
-    def train(self, data, label_strs, epochs, data_val=None, start_epoch=0, batch_size=8, log_freq=1, gen_freq=5, checkpoint_freq=5, log_lr=False):
+    def train(self, data, label_strs, epochs, data_val=None, start_epoch=1, batch_size=8, log_freq=1, gen_freq=5, checkpoint_freq=5, save_freq = 1, log_lr=False):
         
         #preprocess data
         data, sample_batch=self._preprocess_data(data, batch_size, True, True, True)
 
         hair_locs = ['hair' in lstr.lower() for lstr in label_strs]
 
-        one_hot_labels = tf.one_hot(range(self.n_classes), self.n_classes)
+        one_hot_labels = tf.one_hot(range(self.n_classes), self.n_classes, dtype=tf.float32)
 
 
 
@@ -382,6 +390,9 @@ class StarGAN():
                 ckpt_save_path = self.checkpoint_manager.save()
                 print (f'Epoch {epoch+1}: Saving checkpoint at {ckpt_save_path}')
             
+            if (epoch+1)%save_freq == 0 or epoch == (epochs-1):
+                self.save_models()
+            
             if log_lr:
                 with self.gen.logger.as_default():
                     tf.summary.scalar('lr', self.gen.optimizer.lr, step=epoch)
@@ -411,7 +422,7 @@ class StarGAN():
 
         hair_locs = ['hair' in lstr.lower() for lstr in label_strs]
 
-        one_hot_labels = tf.one_hot(range(self.n_classes), self.n_classes)
+        one_hot_labels = tf.one_hot(range(self.n_classes), self.n_classes, dtype=tf.float32)
 
 
 

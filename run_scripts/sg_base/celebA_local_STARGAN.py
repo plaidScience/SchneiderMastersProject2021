@@ -41,7 +41,7 @@ def main(restore=False):
     if restore:
         start_epoch = int(input("Input the epoch to start from: "))
     else:
-        start_epoch=0
+        start_epoch=1
     
     starGAN.train(
         dataset, labels, EPOCHS,
