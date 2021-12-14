@@ -27,7 +27,7 @@ def main():
 
     dataset, test_dataset, val_dataset = CELEBA.load_celeba(load_dir, labels, tt_split=True)
 
-    BATCH_SIZE = 16
+    BATCH_SIZE = 8
     IMG_WIDTH = 178
     IMG_HEIGHT = 218
     
@@ -64,7 +64,7 @@ def main():
             preprocess_model=preprocess_model
             )
     elif model_idx == 3:
-        model_date = input("Input the Date to reload from, in M_D/H/ format: ")
+        model_date = "12_11/22/"
         model_folder = './OUTPUT/sg_multitrain_celeba/'
         model = SG_MT(
             [RESCALE_DIM, RESCALE_DIM, 3], len(labels),
@@ -119,7 +119,7 @@ def main():
     
         return tf.concat(output, axis=concat_along)
 
-    def save_generated(base_dataset, save_to=os.path.join(model_folder, 'qualitative_results/'), n_cycles=0, trailing_zeros=5):
+    def save_generated(base_dataset, save_to=os.path.join(model_folder, 'qualitative_results/'), n_cycles=0, trailing_zeros=5, batch_img_out=False):
         if not os.path.exists(save_to):
             os.makedirs(save_to)
         
@@ -145,9 +145,16 @@ def main():
                 img = tf.image.convert_image_dtype(img, tf.uint8)
                 encoded = tf.io.encode_jpeg(img, format='rgb')
                 tf.io.write_file(os.path.join(save_to, ("images{:0"+str(trailing_zeros)+"d}.jpg").format(i*BATCH_SIZE+j)), encoded)
+            if batch_img_out:
+                batch_img = tf.concat([imgs[i] for i in range(imgs.shape[0])], axis=0)
+                batch_img= tf.clip_by_value(batch_img*0.5+0.5, 0.0, 1.0)
+                batch_img = tf.image.convert_image_dtype(batch_img, tf.uint8)
+                encoded = tf.io.encode_jpeg(batch_img, format='rgb')
+                tf.io.write_file(os.path.join(save_to, ("batch{:0"+str(trailing_zeros)+"d}.jpg").format(i)), encoded)
+
         return
     
-    save_generated(test_dataset, n_cycles=3, trailing_zeros=4)
+    save_generated(test_dataset, n_cycles=3, trailing_zeros=4, batch_img_out=True)
 
         
 if __name__ =='__main__':

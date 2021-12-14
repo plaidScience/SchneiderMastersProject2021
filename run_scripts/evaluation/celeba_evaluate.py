@@ -62,7 +62,7 @@ def main(use_lpips=False):
             preprocess_model=preprocess_model
             )
     elif model_idx == 3:
-        model_date = input("Input the Date to reload from, in M_D/H/ format: ")
+        model_date = "12_11/22/"
         model_folder = './OUTPUT/sg_multitrain_celeba/'
         model = SG_MT(
             [RESCALE_DIM, RESCALE_DIM, 3], len(labels),
