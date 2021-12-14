@@ -144,6 +144,12 @@ class StarGAN():
         targets = (1-cls)*(1-mask) + random_mask_val
 
         return targets
+    
+    def inv_selected_targets(self, cls, selected_targets):
+        return cls*(1-selected_targets) + (1-cls)*selected_targets
+    
+    def set_targets_mask(self, cls, mask, idx):
+        return cls*(1-mask) + tf.one_hot([idx], self.n_classes)
 
     @tf.function
     def _train_preprocess(self, inp):
