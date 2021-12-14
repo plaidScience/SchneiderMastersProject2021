@@ -1,6 +1,6 @@
-# Extending CycleGAN capstone
+# Multicyclic Loss Capstone 
 
-Extending the CycleGAN framework to 3+ Domains
+Extending the StarGAN to care about future image generations
 
 ## Papers of Note
 
@@ -10,5 +10,4 @@ Extending the CycleGAN framework to 3+ Domains
 
 ## Todo:
 
-- Implement TF Strategy for Multi-GPU use
-- Implement In-Class Data Preprocessing? (or data preprocessing class itself)
+- How-To install script
