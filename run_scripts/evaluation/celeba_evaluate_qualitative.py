@@ -27,7 +27,7 @@ def main():
 
     dataset, test_dataset, val_dataset = CELEBA.load_celeba(load_dir, labels, tt_split=True)
 
-    BATCH_SIZE = 8
+    BATCH_SIZE = 16
     IMG_WIDTH = 178
     IMG_HEIGHT = 218
     
@@ -39,10 +39,10 @@ def main():
     model_idx = int(input("Input the Num of the model you want to eval on (1 for Stargan, 2 for SG_MC, 3 for SG_MT): "))
 
     if model_idx < 0:
-        take_every = int(input("Take Every N Data For Testing: "))
-        dataset = dataset.shard(take_every, 1)
-        val_dataset = val_dataset.shard(take_every, 1)
-        test_dataset= test_dataset.shard(take_every, 1)
+        take_first = int(input("Take First N Data For Testing: "))
+        dataset = dataset.take(take_first)
+        val_dataset = val_dataset.take(take_first)
+        test_dataset= test_dataset.take(take_first)
         model_idx = -model_idx
 
     if model_idx == 1:
@@ -75,6 +75,10 @@ def main():
     else:
         raise(ValueError("Model ID out of Range!"))
 
+    if input("Log Model Image? [y/N]: ").lower().startswith("y"):
+        tf.keras.utils.plot_model(model.gen.model, to_file=os.path.join(model_folder, 'qualitative_results/', 'gen_model.png'), show_shapes=True, expand_nested=True)
+        tf.keras.utils.plot_model(model.disc.model, to_file=os.path.join(model_folder, 'qualitative_results/', 'disc_model.png'), show_shapes=True, expand_nested=True)
+
     
     def get_generated_imgs(batch_image, batch_labels, first_out=None, hair_mask=tf.constant([1.0, 1.0, 1.0, 0.0, 0.0]), concat_along=2):
 
@@ -97,10 +101,13 @@ def main():
                 trg_labels = model.inv_selected_targets(batch_labels, mask)
                 gen_imgs = model.gen.model.predict([batch_image, trg_labels])
                 output.append(gen_imgs)
+        hair_mask_2 = hair_mask
+        move_id = 0
         for i, hair_id in enumerate(hair_mask):
             if hair_id==0.0:
-                for j, hair_id_2 in enumerate(hair_mask):
-                    if hair_id_2==0.0:
+                for j, hair_id_2 in enumerate(hair_mask_2):
+                    j+=move_id
+                    if hair_id_2==0.0 and not i==j:
                         mask = tf.one_hot(i, len(labels)) + tf.one_hot(j, len(labels))
                         trg_labels = model.inv_selected_targets(batch_labels, mask)
                         gen_imgs = model.gen.model.predict([batch_image, trg_labels])
@@ -110,6 +117,8 @@ def main():
                 trg_labels = model.inv_selected_targets(trg_labels, mask)
                 gen_imgs = model.gen.model.predict([batch_image, trg_labels])
                 output.append(gen_imgs)
+            hair_mask_2 = hair_mask_2[1:]
+            move_id +=1
         
         mask = 1.0-hair_mask
         trg_labels = model.set_targets_mask(batch_labels, hair_mask, first_masked)
@@ -133,7 +142,7 @@ def main():
             predict_on = preprocessed
             cycle_results = []
             cycle_results.append(get_generated_imgs(predict_on, labels, hair_mask=label_mask, concat_along=2))
-            for n in range(n_cycles-1):
+            for n in range(n_cycles):
                 cycle_labels = model.gen_target(labels)
                 predict_on = model.gen.model.predict([predict_on, cycle_labels])
                 cycle_results.append(get_generated_imgs(predict_on, labels, first_out=tf.ones_like(predict_on), hair_mask=label_mask,  concat_along=2))
@@ -144,17 +153,17 @@ def main():
                 img= tf.clip_by_value(img*0.5+0.5, 0.0, 1.0)
                 img = tf.image.convert_image_dtype(img, tf.uint8)
                 encoded = tf.io.encode_jpeg(img, format='rgb')
-                tf.io.write_file(os.path.join(save_to, ("images{:0"+str(trailing_zeros)+"d}.jpg").format(i*BATCH_SIZE+j)), encoded)
+                tf.io.write_file(os.path.join(save_to, "images_2/", ("image{:0"+str(trailing_zeros)+"d}.jpg").format(i*BATCH_SIZE+j)), encoded)
             if batch_img_out:
                 batch_img = tf.concat([imgs[i] for i in range(imgs.shape[0])], axis=0)
                 batch_img= tf.clip_by_value(batch_img*0.5+0.5, 0.0, 1.0)
                 batch_img = tf.image.convert_image_dtype(batch_img, tf.uint8)
                 encoded = tf.io.encode_jpeg(batch_img, format='rgb')
-                tf.io.write_file(os.path.join(save_to, ("batch{:0"+str(trailing_zeros)+"d}.jpg").format(i)), encoded)
+                tf.io.write_file(os.path.join(save_to, "batches_2/", ("batch{:0"+str(trailing_zeros)+"d}.jpg").format(i)), encoded)
 
         return
     
-    save_generated(test_dataset, n_cycles=3, trailing_zeros=4, batch_img_out=True)
+    save_generated(test_dataset, n_cycles=2, trailing_zeros=4, batch_img_out=True)
 
         
 if __name__ =='__main__':
