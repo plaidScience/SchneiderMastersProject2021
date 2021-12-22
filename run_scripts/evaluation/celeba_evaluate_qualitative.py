@@ -47,7 +47,7 @@ def main():
 
     if model_idx == 1:
         model_date = "12_06/16/"
-        model_folder = './OUTPUT/starGAN_celeba/'
+        model_folder = './FINAL_OUTPUT/starGAN_celeba/'
         model = SG_BASE(
             [RESCALE_DIM, RESCALE_DIM, 3], len(labels),
             model_folder,
@@ -56,7 +56,7 @@ def main():
             )
     elif model_idx == 2:
         model_date = "12_08/18/"
-        model_folder = './OUTPUT/sg_multi_celeba/'
+        model_folder = './FINAL_OUTPUT/sg_multi_celeba/'
         model = SG_MC(
             [RESCALE_DIM, RESCALE_DIM, 3], len(labels),
             model_folder,
@@ -65,7 +65,7 @@ def main():
             )
     elif model_idx == 3:
         model_date = "12_11/22/"
-        model_folder = './OUTPUT/sg_multitrain_celeba/'
+        model_folder = './FINALOUTPUT/sg_multitrain_celeba/'
         model = SG_MT(
             [RESCALE_DIM, RESCALE_DIM, 3], len(labels),
             model_folder,
