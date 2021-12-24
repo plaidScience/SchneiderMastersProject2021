@@ -52,7 +52,8 @@ def main():
             [RESCALE_DIM, RESCALE_DIM, 3], len(labels),
             model_folder,
             time_created=model_date,
-            preprocess_model=preprocess_model
+            preprocess_model=preprocess_model,
+            restore_model_from_checkpoint=False
             )
     elif model_idx == 2:
         model_date = "12_08/18/"
@@ -61,7 +62,8 @@ def main():
             [RESCALE_DIM, RESCALE_DIM, 3], len(labels),
             model_folder,
             time_created=model_date,
-            preprocess_model=preprocess_model
+            preprocess_model=preprocess_model,
+            restore_model_from_checkpoint=False
             )
     elif model_idx == 3:
         model_date = "12_11/22/"
@@ -70,7 +72,8 @@ def main():
             [RESCALE_DIM, RESCALE_DIM, 3], len(labels),
             model_folder,
             time_created=model_date,
-            preprocess_model=preprocess_model
+            preprocess_model=preprocess_model,
+            restore_model_from_checkpoint=False
             )
     else:
         raise(ValueError("Model ID out of Range!"))

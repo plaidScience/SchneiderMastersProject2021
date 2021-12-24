@@ -45,7 +45,7 @@ class MODEL():
         else:
             load_dir = os.path.join(load_path, 'saved_models', f'{name}/')
         if os.path.exists(load_dir):
-            self.model = tf.keras.models.load_model(load_dir **kwargs)
+            self.model = tf.keras.models.load_model(load_dir, **kwargs)
         else:
             raise OSError("Model Folder Does Not Exist!")
 
